@@ -13,7 +13,11 @@ cmake -S third_party/llama.cpp -B build/llama -G Ninja \
   -DGGML_OPENMP=OFF -DGGML_LLAMAFILE=OFF -DGGML_CPU_KLEIDIAI=ON \
   -DLLAMA_OPENSSL=OFF -DLLAMA_BUILD_TESTS=OFF -DLLAMA_BUILD_EXAMPLES=OFF
 
-cmake --build build/llama --config Release -t llama-server ggml-cpu
+# Jede CPU-Variante ist ein eigenes Target, die Auswahl trifft ggml erst zur Laufzeit.
+cpu_targets=$(ninja -C build/llama -t targets all | sed -nE 's/^(ggml-cpu-[^:]+): phony.*/\1/p')
+test -n "$cpu_targets"
+# shellcheck disable=SC2086
+cmake --build build/llama --config Release -t llama-server $cpu_targets
 
 rm -rf "$OUT"
 mkdir -p "$OUT"
