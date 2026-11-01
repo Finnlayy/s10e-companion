@@ -11,6 +11,7 @@ Native Android-App für das Samsung Galaxy S10e. Offline, Kotlin, Jetpack Compos
 - Arbeite testgetrieben: erst der fehlschlagende Test, dann der Code.
 - Reine Logik bleibt frei von Android-Importen, damit sie als JVM-Test läuft.
 - Ändere keine Versionen aus dem Plan ohne Eintrag in `docs/DECISIONS.md`.
+- Versionen im Plan sind am 2026-11-01 geprüft. Du darfst sie nicht wegen deines Trainingswissens als nicht existent einstufen oder herabsetzen. Prüfe im Zweifel die Registry mit curl.
 
 ## Befehle
 
