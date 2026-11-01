@@ -29,13 +29,6 @@ class EyesCanvasTest {
         )
     )
 
-    @Test
-    fun captureAllMoods() {
-        composeTestRule.mainClock.autoAdvance = false
-        // Need to loop over moods, but we can't call setContent multiple times.
-        // Or we can just capture them in multiple tests. Let's do multiple tests!
-    }
-
     @Test fun capture_NEUTRAL() = captureMood(Mood.NEUTRAL)
     @Test fun capture_HAPPY() = captureMood(Mood.HAPPY)
     @Test fun capture_ANGRY() = captureMood(Mood.ANGRY)

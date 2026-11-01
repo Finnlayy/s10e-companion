@@ -7,7 +7,7 @@ class ShakeDetector(val threshold: Float = 23f, val trigger: Float = 48f, val de
 
     fun onSample(x: Float, y: Float, z: Float): Boolean {
         val len = sqrt(x * x + y * y + z * z)
-        
+
         if (len > threshold) {
             accumulator += (len - threshold)
         } else {
@@ -18,10 +18,10 @@ class ShakeDetector(val threshold: Float = 23f, val trigger: Float = 48f, val de
         }
 
         if (accumulator > trigger) {
-            accumulator = 0f 
+            accumulator = 0f
             return true
         }
-        
+
         return false
     }
 }

@@ -15,7 +15,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.rotate
-import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.drawscope.translate
 
 @Composable
@@ -33,11 +32,11 @@ fun EyesCanvas(mood: Mood) {
     Canvas(modifier = Modifier.fillMaxSize().background(Color.Black)) {
         val t = timeNanos.longValue
         val frame = eyeFrame(mood, t)
-        
+
         val spacing = 58f.dp.toPx()
         val centerX = size.width / 2
         val centerY = size.height / 2
-        
+
         val offsetX = frame.offsetX.dp.toPx()
         val offsetY = frame.offsetY.dp.toPx()
 
@@ -54,7 +53,7 @@ fun EyesCanvas(mood: Mood) {
                 )
             }
         }
-        
+
         // draw right eye
         translate(
             left = centerX + spacing / 2 + offsetX,

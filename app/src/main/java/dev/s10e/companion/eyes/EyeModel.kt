@@ -9,11 +9,9 @@ data class EyeShape(val width: Float, val height: Float, val corner: Float, val 
 data class EyeFrame(val left: EyeShape, val right: EyeShape, val offsetX: Float, val offsetY: Float)
 
 fun eyeFrame(mood: Mood, timeNanos: Long, lookX: Float = 0f, lookY: Float = 0f): EyeFrame {
-    // Auge 108×148 dp, Ecke 40 dp, Abstand 58 dp
     val defaultWidth = 108f
     val defaultHeight = 148f
-    var cornerL = 40f
-    var cornerR = 40f
+    val corner = 40f
 
     var heightL = defaultHeight
     var heightR = defaultHeight
@@ -21,7 +19,7 @@ fun eyeFrame(mood: Mood, timeNanos: Long, lookX: Float = 0f, lookY: Float = 0f):
     var widthR = defaultWidth
     var rotL = 0f
     var rotR = 0f
-    var color = 0xFF00F0FF // NEUTRAL
+    var color = 0xFF00F0FF
 
     when (mood) {
         Mood.NEUTRAL -> {
@@ -54,14 +52,11 @@ fun eyeFrame(mood: Mood, timeNanos: Long, lookX: Float = 0f, lookY: Float = 0f):
         Mood.DIZZY -> {
             color = 0xFFFFE600
             widthL = 95f
-            heightL = 95f
-            widthR = 75f
+            heightL = 75f
+            widthR = 95f
             heightR = 75f
-            cornerL = 30f
-            cornerR = 25f
-            val spinNanos = 350_000_000L
-            rotL = (timeNanos % spinNanos) * 360f / spinNanos
-            rotR = -rotL
+            rotL = ((timeNanos / 10_000_000L) % 360L).toFloat()
+            rotR = rotL
         }
         Mood.SLEEPY -> {
             color = 0xFF005577
@@ -73,7 +68,7 @@ fun eyeFrame(mood: Mood, timeNanos: Long, lookX: Float = 0f, lookY: Float = 0f):
     val blinkCycle = 4_000_000_000L
     val blinkDuration = 130_000_000L
     val timeInCycle = timeNanos % blinkCycle
-    if (mood == Mood.NEUTRAL && timeInCycle < blinkDuration) {
+    if (timeInCycle < blinkDuration) {
         val mid = blinkDuration / 2
         val progress = if (timeInCycle < mid) {
             timeInCycle.toFloat() / mid
@@ -91,8 +86,8 @@ fun eyeFrame(mood: Mood, timeNanos: Long, lookX: Float = 0f, lookY: Float = 0f):
     val finalOffsetX = lookX + driftX
     val finalOffsetY = lookY + driftY
 
-    val left = EyeShape(widthL, heightL, cornerL, rotL, color)
-    val right = EyeShape(widthR, heightR, cornerR, rotR, color)
+    val left = EyeShape(widthL, heightL, corner, rotL, color)
+    val right = EyeShape(widthR, heightR, corner, rotR, color)
 
     return EyeFrame(left, right, finalOffsetX, finalOffsetY)
 }

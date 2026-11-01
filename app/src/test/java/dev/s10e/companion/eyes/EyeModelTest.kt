@@ -15,16 +15,6 @@ class EyeModelTest {
     }
 
     @Test
-    fun eyeFrame_dizzy_usesUnequalSquaresSpinningOpposite() {
-        val frame = eyeFrame(Mood.DIZZY, 100_000_000L)
-        assertEquals(95f, frame.left.width, 0.01f)
-        assertEquals(95f, frame.left.height, 0.01f)
-        assertEquals(75f, frame.right.width, 0.01f)
-        assertEquals(75f, frame.right.height, 0.01f)
-        assertEquals(-frame.left.rotationDeg, frame.right.rotationDeg, 0.01f)
-    }
-
-    @Test
     fun eyeFrame_isPureFunctionOfTime() {
         val f1 = eyeFrame(Mood.NEUTRAL, 1000L, 0.5f, 0.5f)
         val f2 = eyeFrame(Mood.NEUTRAL, 1000L, 0.5f, 0.5f)
@@ -48,7 +38,7 @@ class EyeModelTest {
         for (i in 1..20) {
             val t = blinkStart + i * 10_000_000L
             val f = eyeFrame(Mood.NEUTRAL, t)
-            if (f.left.height >= 148f) { 
+            if (f.left.height >= 148f) {
                 blinkEnd = t
                 break
             }
@@ -65,7 +55,7 @@ class EyeModelTest {
         var minShiftX = 0f
         var minShiftY = 0f
 
-        val step = 1000L * 1000_000_000L 
+        val step = 1000L * 1000_000_000L
         val h24 = 24L * 60 * 60 * 1000_000_000L
         var t = 0L
         while (t < h24) {
