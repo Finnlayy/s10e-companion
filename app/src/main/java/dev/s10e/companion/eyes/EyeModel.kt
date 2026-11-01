@@ -73,7 +73,7 @@ fun eyeFrame(mood: Mood, timeNanos: Long, lookX: Float = 0f, lookY: Float = 0f):
     val blinkCycle = 4_000_000_000L
     val blinkDuration = 130_000_000L
     val timeInCycle = timeNanos % blinkCycle
-    if (timeInCycle < blinkDuration) {
+    if (mood == Mood.NEUTRAL && timeInCycle < blinkDuration) {
         val mid = blinkDuration / 2
         val progress = if (timeInCycle < mid) {
             timeInCycle.toFloat() / mid
