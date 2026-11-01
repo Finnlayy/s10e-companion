@@ -45,6 +45,9 @@ class LlmServerService : Service() {
             val libDir = applicationInfo.nativeLibraryDir
             val llamaServer = File(libDir, "libllama-server.so")
 
+            // Ein Absturz der App kann einen Server hinterlassen, der Port 8080 weiter belegt.
+            ProcessBuilder("pkill", "-f", "libllama-server.so").start().waitFor()
+
             val supervisor = ServerSupervisor(
                 launch = {
                     ProcessBuilder(
@@ -65,7 +68,7 @@ class LlmServerService : Service() {
                     ).apply {
                         environment()["LD_LIBRARY_PATH"] = libDir
                         redirectErrorStream(true)
-                        redirectOutput(File("/dev/null")) // Prevent block from unread pipe
+                        redirectOutput(File(filesDir, "llama-server.log"))
                     }.start()
                 },
                 sleep = { delay(it) }
