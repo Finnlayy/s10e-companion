@@ -1,8 +1,8 @@
 # Decisions
 
-* `platforms;android-37` is not available in `sdkmanager`, fallback to `platforms;android-35` instead.
-* `build-tools;37.0.0` is not available, fallback to `build-tools;35.0.0`.
-* `gradle-9.6` does not exist on services.gradle.org (which currently maxes out at 8.12.x or 8.x). Will use `gradle-8.7` for the wrapper instead. Note that AGP 8.x typically requires Gradle 8.x. The spec calls for AGP 9.5.0 but such a version does not exist. Using standard AGP 8.3.2 and Gradle 8.7 for now.
+* `platforms;android-37.0` is available in `sdkmanager`.
+* `build-tools;37.0.0` is available.
+* `gradle-9.6.0` exists on services.gradle.org and AGP 9.5.0 exists as a stable release.
 
 ## System Status
 
