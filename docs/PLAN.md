@@ -16,6 +16,7 @@
 - `minSdk 31`, `targetSdk 31`, `compileSdk 37`, nur ABI `arm64-v8a`. Gradle läuft auf JDK 21, Bytecode-Ziel 17.
 - Nach dem Einspielen der Modelle führt kein Codepfad Netzwerkzugriffe nach außen aus. Die App deklariert `INTERNET` nur für Loopback, `android:usesCleartextTraffic` gilt per Network-Security-Config nur für `127.0.0.1`.
 - Keine Modelle, APKs, Keystores oder `local.properties` im Repo. Dateien über 50 MiB sind verboten.
+- Repo und APK-Releases bleiben privat, weil sherpa-onnx 1.13.x das GPL-lizenzierte espeak-ng enthält.
 - llama.cpp: keine handgesetzten `-march`-Flags, kein i8mm, kein Vulkan (`-ngl` nie setzen), kein `-snapdragon`-Build.
 - Der Agent bekommt niemals eine rohe Shell. Aktionen laufen nur über die Allowlist aus Phase 8.
 - `.github/workflows/` nur ändern, wenn eine Phase es verlangt.
@@ -181,7 +182,7 @@ class SpeechController(private val rec: Recognizer, private val tts: Speaker) {
 fun classify(transcript: String, kidMode: Boolean): VoiceIntent
 ```
 
-Dependencies: `com.alphacephei:vosk-android:0.3.75`, sherpa-onnx-AAR der neuesten 1.13.x-Version aus den GitHub-Releases nach `app/libs/` per Skript `scripts/fetch-speech-aar.sh`. Modelle: `vosk-model-small-de-0.15`, `vits-piper-de_DE-thorsten-medium`, beide über denselben Import wie Phase 4.
+Dependencies: `com.alphacephei:vosk-android:0.3.75`, sherpa-onnx-AAR der neuesten 1.13.x-Version aus den GitHub-Releases nach `app/libs/` per Skript `scripts/fetch-speech-aar.sh`. Modelle: `vosk-model-small-de-0.15`, `vits-piper-de_DE-thorsten-medium`, beide über denselben Import wie Phase 4. Ihre Größen und SHA-256 stehen noch nicht fest: Lade beide Archive einmalig, trage die Werte in `speech.json` ein und committe die Archive nicht.
 
 - [ ] **Step 1:** Tests schreiben: `classify_kidMode_onlyUnlockPhraseCounts`, `classify_unlock_matchesSeparatedWords` („agenten modus aktivieren“ zählt ebenfalls), `classify_unk_isIgnored`, `say_pausesRecognizerAndResumes` (Mikro ist während der Ausgabe aus), `say_resumesRecognizerWhenTtsThrows`.
 - [ ] **Step 2:** Tests ausführen. Erwartet: FAIL.
