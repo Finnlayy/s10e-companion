@@ -1,0 +1,16 @@
+.gradle/
+build/
+local.properties
+.idea/
+*.iml
+*.apk
+*.aab
+*.keystore
+*.jks
+*.gguf
+*.onnx
+.env*
+!.env.example
+app/src/main/jniLibs/
+app/libs/
+*.log

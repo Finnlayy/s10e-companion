@@ -1,0 +1,46 @@
+name: Android
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    env:
+      ANDROID_NDK: /usr/local/lib/android/sdk/ndk/29.0.14206865
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Prüfen, ob das Gradle-Projekt existiert
+        id: project
+        run: |
+          if [ -f gradlew ]; then echo "exists=true" >> "$GITHUB_OUTPUT"; else echo "exists=false" >> "$GITHUB_OUTPUT"; fi
+      - name: llama.cpp aus dem Cache holen
+        if: steps.project.outputs.exists == 'true' && hashFiles('scripts/build-llama.sh') != ''
+        uses: actions/cache@v4
+        with:
+          path: |
+            build/llama
+            app/src/main/jniLibs
+          key: llama-${{ hashFiles('scripts/build-llama.sh', '.gitmodules') }}-${{ runner.os }}
+      - name: llama.cpp bauen
+        if: steps.project.outputs.exists == 'true' && hashFiles('scripts/build-llama.sh') != ''
+        run: bash scripts/build-llama.sh
+      - name: Testen und bauen
+        if: steps.project.outputs.exists == 'true'
+        run: ./gradlew --no-daemon testDebugUnitTest assembleDebug
+      - name: APK hochladen
+        if: steps.project.outputs.exists == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: s10e-companion-debug
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
