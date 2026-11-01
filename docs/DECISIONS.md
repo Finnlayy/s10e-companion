@@ -27,3 +27,4 @@ tmpfs                    796M  4.0K  796M   1% /run/user/1001
 ```
 * `ls -l /dev/kvm`: `ls: cannot access '/dev/kvm': No such file or directory`
 * Build duration: ~3m 9s
+The ModeMachine tests now correctly set initial times using a Tick event so the initial tick timeout calculation succeeds.
