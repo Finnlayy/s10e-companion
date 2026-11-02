@@ -14,6 +14,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.LifecycleOwner
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -38,12 +40,16 @@ import dev.s10e.companion.vault.VaultStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
+import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
 
 import android.content.Context
 import kotlinx.coroutines.CoroutineScope
+
+private const val HEALTH_WAIT_S = 60
 
 fun handleTerminalInput(
     text: String,
@@ -52,19 +58,19 @@ fun handleTerminalInput(
     vaultStore: VaultStore,
     onMoodChange: (Mood) -> Unit,
     onInteraction: () -> Unit,
-    isServerHealthy: Boolean,
+    isServerHealthy: () -> Boolean,
     updateReply: (String) -> Unit
 ) {
     scope.launch(Dispatchers.IO) {
-        if (!isServerHealthy) {
+        if (!isServerHealthy()) {
             updateReply("Modell lädt…")
-            // Wait a bit
             var waited = 0
-            while (!isServerHealthy && waited < 10) {
+            while (!isServerHealthy() && waited < HEALTH_WAIT_S) {
                 delay(1000)
+                onInteraction()
                 waited++
             }
-            if (!isServerHealthy) {
+            if (!isServerHealthy()) {
                 updateReply("[Fehler: Server antwortet nicht rechtzeitig.]")
                 return@launch
             }
@@ -104,19 +110,26 @@ fun handleTerminalInput(
 fun ApolloTerminal(
     onMoodChange: (Mood) -> Unit,
     onEnterKidMode: () -> Unit,
-    onInteraction: () -> Unit
+    onInteraction: () -> Unit,
+    mood: Mood,
+    reply: String,
+    onReplyChange: (String) -> Unit,
+    onNote: suspend (String) -> Unit
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
     // Manage external storage permission
-    var hasStoragePermission by remember { mutableStateOf(if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) Environment.isExternalStorageManager() else true) }
+    // Die Freigabe geschieht in den Systemeinstellungen, deshalb bei jeder Rückkehr neu prüfen.
+    val lifecycleState by (context as LifecycleOwner).lifecycle.currentStateFlow.collectAsState()
+    val hasStoragePermission = remember(lifecycleState) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) Environment.isExternalStorageManager() else true
+    }
 
     val vaultStore = remember { VaultStore(File("/sdcard/Documents/ObsidianVault/")) }
     var boardState by remember { mutableStateOf(dev.s10e.companion.vault.Board()) }
 
     var inputText by remember { mutableStateOf("") }
-    var llmReply by remember { mutableStateOf("") }
 
     // Health check state
     var isServerHealthy by remember { mutableStateOf(false) }
@@ -124,8 +137,11 @@ fun ApolloTerminal(
     LaunchedEffect(hasStoragePermission) {
         if (hasStoragePermission) {
             scope.launch(Dispatchers.IO) {
-                val (board, _) = vaultStore.load()
-                boardState = board
+                try {
+                    boardState = vaultStore.load().first
+                } catch (e: IOException) {
+                    onReplyChange("[Vault nicht lesbar: ${e.message}]")
+                }
             }
         }
     }
@@ -143,6 +159,7 @@ fun ApolloTerminal(
                     if (connection.responseCode == 200) {
                         isServerHealthy = true
                     }
+                    connection.disconnect()
                 } catch (e: Exception) {
                     // Ignore, keep polling
                 }
@@ -201,9 +218,15 @@ fun ApolloTerminal(
         }
 
         // LLM Reply text
-        if (llmReply.isNotEmpty()) {
+        val status = when (mood) {
+            Mood.LISTENING -> "Ich höre zu…"
+            Mood.THINKING -> "Ich denke nach…"
+            else -> null
+        }
+        if (status != null) Text(status, color = Color(0xFFB84DFF), modifier = Modifier.padding(horizontal = 16.dp))
+        if (reply.isNotEmpty()) {
             Text(
-                text = llmReply,
+                text = reply,
                 color = Color.White,
                 modifier = Modifier
                     .fillMaxWidth()
@@ -234,15 +257,14 @@ fun ApolloTerminal(
                         if (text.isNotEmpty()) {
                             onInteraction()
                             if (text.startsWith("Notiz", ignoreCase = true) || text.startsWith("Aufgabe", ignoreCase = true)) {
-                                scope.launch(Dispatchers.IO) {
-                                    vaultStore.appendInbox(text, System.currentTimeMillis())
-                                    val (newBoard, _) = vaultStore.load()
-                                    boardState = newBoard
+                                scope.launch {
+                                    onNote(text)
+                                    if (hasStoragePermission) {
+                                        boardState = withContext(Dispatchers.IO) { vaultStore.load().first }
+                                    }
                                 }
                             } else {
-                                handleTerminalInput(text, context, scope, vaultStore, onMoodChange, onInteraction, isServerHealthy) { reply ->
-                                    llmReply = reply
-                                }
+                                handleTerminalInput(text, context, scope, vaultStore, onMoodChange, onInteraction, { isServerHealthy }, onReplyChange)
                             }
                             inputText = ""
                         }

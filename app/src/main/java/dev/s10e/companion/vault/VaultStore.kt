@@ -1,6 +1,7 @@
 package dev.s10e.companion.vault
 
 import java.io.File
+import java.io.IOException
 import java.util.concurrent.locks.ReentrantReadWriteLock
 import kotlin.concurrent.read
 import kotlin.concurrent.write
@@ -56,7 +57,7 @@ class VaultStore(private val root: File) {
                 ensureLayout()
             }
             val currentMtime = kanbanFile.lastModified()
-            if (currentMtime > baseMtimeMs) {
+            if (currentMtime != baseMtimeMs) {
                 // Conflict detected: external change
                 val currentBoard = KanbanCodec.parse(kanbanFile.readText())
                 val merged = mergeBoards(currentBoard, board)
@@ -66,7 +67,7 @@ class VaultStore(private val root: File) {
             // Write atomically to a temp file and rename
             val tempFile = File(kanbanFile.parentFile, kanbanFile.name + ".tmp")
             tempFile.writeText(KanbanCodec.serialize(board))
-            tempFile.renameTo(kanbanFile)
+            if (!tempFile.renameTo(kanbanFile)) throw IOException("Kanban.md nicht ersetzbar")
             SaveResult.Saved
         }
     }

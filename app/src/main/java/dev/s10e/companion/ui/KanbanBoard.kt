@@ -63,7 +63,7 @@ fun KanbanBoardView(board: Board, modifier: Modifier = Modifier, onInteraction: 
                         if (card.isNotBlank()) {
                             Card(modifier = Modifier.padding(bottom = 8.dp)) {
                                 Text(
-                                    text = card,
+                                    text = card.removePrefix("- [ ] ").removePrefix("- [x] "),
                                     modifier = Modifier.padding(12.dp)
                                 )
                             }
