@@ -14,3 +14,6 @@ local.properties
 app/src/main/jniLibs/
 app/libs/
 *.log
+tmp_models/
+*.zip
+*.tar.bz2

@@ -1,3 +1,7 @@
+import java.security.MessageDigest
+import java.io.FileInputStream
+import java.net.URL
+
 plugins {
     alias(libs.plugins.android.application)
     id("org.jetbrains.kotlin.plugin.compose")
@@ -56,7 +60,55 @@ android {
     }
 }
 
+val fetchSpeechAar by tasks.registering {
+    val aarFile = file("libs/sherpa-onnx-1.13.8.aar")
+    val expectedSize = 50129134L
+    val expectedSha256 = "633c24321e06b1fe79feafa03ea16cbc0f8a286641e2da3559bac91bdb13bd96"
+    val downloadUrl = "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-1.13.8.aar"
+    
+    outputs.file(aarFile)
+    
+    doLast {
+        fun checkFile(): Boolean {
+            if (!aarFile.exists() || aarFile.length() != expectedSize) return false
+            val digest = MessageDigest.getInstance("SHA-256")
+            val buffer = ByteArray(8192)
+            FileInputStream(aarFile).use { fis ->
+                var bytesRead = fis.read(buffer)
+                while (bytesRead != -1) {
+                    digest.update(buffer, 0, bytesRead)
+                    bytesRead = fis.read(buffer)
+                }
+            }
+            val sha256 = digest.digest().joinToString("") { "%02x".format(it) }
+            return sha256 == expectedSha256
+        }
+
+        if (checkFile()) {
+            println("sherpa-onnx AAR is already valid.")
+        } else {
+            println("Downloading sherpa-onnx AAR...")
+            aarFile.parentFile.mkdirs()
+            URL(downloadUrl).openStream().use { input ->
+                aarFile.outputStream().use { output ->
+                    input.copyTo(output)
+                }
+            }
+            if (!checkFile()) {
+                throw GradleException("Downloaded sherpa-onnx AAR verification failed")
+            }
+            println("sherpa-onnx AAR downloaded and verified.")
+        }
+    }
+}
+
+tasks.named("preBuild").configure {
+    dependsOn(fetchSpeechAar)
+}
+
 dependencies {
+    implementation("com.alphacephei:vosk-android:0.3.75")
+    implementation(files("libs/sherpa-onnx-1.13.8.aar"))
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)

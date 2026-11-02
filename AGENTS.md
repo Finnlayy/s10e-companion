@@ -24,6 +24,7 @@ bash scripts/build-llama.sh
 ## Verbote
 
 - Keine Modelle, APKs, Keystores, `local.properties` oder Dateien über 50 MiB committen.
+- Downloads nie ins Repo legen, sondern nach `/tmp`. Zu große Änderungssätze lassen die Session scheitern.
 - `.github/workflows/` nur ändern, wenn die Phase es verlangt.
 - Keine Netzwerkaufrufe außer an `127.0.0.1`.
 - Keine rohe Shell für den Agenten, kein `DISALLOW_DEBUGGING_FEATURES`.
