@@ -28,6 +28,27 @@ android {
         }
     }
 
+    signingConfigs {
+        create("release") {
+            val keystore = System.getenv("S10E_KEYSTORE")
+            val keystorePassword = System.getenv("S10E_KEYSTORE_PASSWORD")
+            val alias = System.getenv("S10E_KEY_ALIAS")
+
+            if (!keystore.isNullOrEmpty() && !keystorePassword.isNullOrEmpty() && !alias.isNullOrEmpty()) {
+                storeFile = file(keystore)
+                storePassword = keystorePassword
+                keyAlias = alias
+                keyPassword = keystorePassword
+            } else {
+                val debugConfig = signingConfigs.getByName("debug")
+                storeFile = debugConfig.storeFile
+                storePassword = debugConfig.storePassword
+                keyAlias = debugConfig.keyAlias
+                keyPassword = debugConfig.keyPassword
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
@@ -35,6 +56,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            signingConfig = signingConfigs.getByName("release")
         }
     }
     compileOptions {

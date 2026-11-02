@@ -87,3 +87,7 @@ For Phase 2, `Roborazzi` screenshot tests required `isIncludeAndroidResources = 
 * Die Kamera fragt ihr Recht erst nach der Mikrofon-Antwort an, weil Android nur eine Abfrage zur Zeit zeigt.
 * `patch_plugin` und `rollback_plugin` sind `ACT`-Werkzeuge und damit an Bestätigung, Not-Aus und Kindermodus gebunden. Der Snapshot liegt im Plugin-Ordner und übersteht Neustarts.
 * `OpenCodeClient` meldet ohne Passwort „nicht verbunden“.
+
+## Phase 10 Decisions
+* `push-models.sh` schiebt nur nach `Android/data`. Der Rückfall auf `/sdcard/Download/` aus dem Plan entfällt, weil die App dort nicht importiert und zwei Gigabyte doppelt lägen.
+* Die Release-Signatur steckt in `app/build.gradle.kts` und nutzt ohne `S10E_KEYSTORE` den Debug-Key, `build-all.sh` warnt dann.

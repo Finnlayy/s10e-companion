@@ -45,11 +45,11 @@ jobs:
           fi
       - name: Testen und bauen
         if: steps.project.outputs.exists == 'true'
-        run: ./gradlew --no-daemon testDebugUnitTest assembleDebug
+        run: ./gradlew --no-daemon testDebugUnitTest assembleDebug assembleRelease
       - name: APK hochladen
         if: steps.project.outputs.exists == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: s10e-companion-debug
-          path: app/build/outputs/apk/debug/*.apk
+          path: app/build/outputs/apk/*/*.apk
           if-no-files-found: error
