@@ -91,3 +91,6 @@ For Phase 2, `Roborazzi` screenshot tests required `isIncludeAndroidResources = 
 ## Phase 10 Decisions
 * `push-models.sh` schiebt nur nach `Android/data`. Der Rückfall auf `/sdcard/Download/` aus dem Plan entfällt, weil die App dort nicht importiert und zwei Gigabyte doppelt lägen.
 * Die Release-Signatur steckt in `app/build.gradle.kts` und nutzt ohne `S10E_KEYSTORE` den Debug-Key, `build-all.sh` warnt dann.
+
+## Nachtest
+* Fragen und „Lies…“ bekommen keine Werkzeuge mehr, weil das Modell bei „Was steht auf dem Bildschirm“ Argumente und Tipps erfand. Nennt der Auftrag den Bildschirm, ruft der Code `read_screen` selbst auf, das Modell formuliert nur die Antwort.

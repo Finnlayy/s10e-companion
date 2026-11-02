@@ -12,7 +12,10 @@ data class Command(val tool: String, val argumentsJson: String)
 
 private const val MAX_STEPS = 8
 private const val CHAT_PROMPT = "Du bist Apollo, ein kleiner Schreibtisch-Begleiter. Antworte kurz und auf Deutsch."
-private val PHONE_TASK = Regex("""\b(tippe|wische|scrolle|bildschirm|verschiebe|karte|plugin|gib .* ein|schreibe .* ein|was steht)\b""", RegexOption.IGNORE_CASE)
+private const val READ_SCREEN = "read_screen"
+private val PHONE_TASK = Regex("""\b(tippe|wische|scrolle|bildschirm|verschiebe|karte|plugin|gib .* ein|schreibe .* ein)\b""", RegexOption.IGNORE_CASE)
+private val READ_ONLY_REQUEST = Regex("""^\s*(was|wer|wen|wem|wie|wo|wann|warum|wieso|weshalb|welche[rsmn]?|lies)\b""", RegexOption.IGNORE_CASE)
+private val MENTIONS_SCREEN = Regex("""\b(bildschirm|display|steht (da|hier))\b""", RegexOption.IGNORE_CASE)
 
 /** Klare Befehle laufen ohne LLM, weil das Modell freien Text entstellt. */
 fun parseCommand(text: String): Command? {
@@ -27,6 +30,8 @@ fun parseCommand(text: String): Command? {
 }
 
 fun looksLikePhoneTask(text: String): Boolean = PHONE_TASK.containsMatchIn(text)
+
+fun looksLikeReadOnlyRequest(text: String): Boolean = READ_ONLY_REQUEST.containsMatchIn(text)
 
 class AgentLoop(
     private val client: LlmClient,
@@ -62,7 +67,17 @@ class AgentLoop(
         }
 
         val history = mutableListOf(ChatMessage("user", initialPrompt))
-        var useTools = tools.isNotEmpty() && looksLikePhoneTask(initialPrompt)
+        val readOnly = looksLikeReadOnlyRequest(initialPrompt)
+
+        // Das Modell erfand bei Lesefragen Tipps, deshalb liest hier der Code und das Modell bekommt keine Werkzeuge.
+        if (readOnly && MENTIONS_SCREEN.containsMatchIn(initialPrompt) && tools.any { it.name == READ_SCREEN }) {
+            when (val result = dispatch(READ_SCREEN, "{}")) {
+                is ToolResult.Success -> history.add(ChatMessage("user", "Ergebnis von $READ_SCREEN: ${result.result}"))
+                is ToolResult.Error -> return "[Fehler: ${result.message}]"
+            }
+        }
+
+        var useTools = !readOnly && tools.isNotEmpty() && looksLikePhoneTask(initialPrompt)
 
         repeat(MAX_STEPS) {
             if (ToolDispatcher.killSwitch) return "[Not-Aus ausgelöst]"
