@@ -1,24 +1,32 @@
 package dev.s10e.companion
 
 import android.os.Bundle
-import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.lifecycle.lifecycleScope
-import dev.s10e.companion.llm.LlmBootstrap
 import dev.s10e.companion.ui.AppRoot
-import kotlinx.coroutines.launch
+import dev.s10e.companion.kid.CrashGuard
+import dev.s10e.companion.kid.SharedPrefsKeyValue
+import dev.s10e.companion.eyes.EyesCanvas
+import dev.s10e.companion.eyes.Mood
 
-val APP_NAME = "S10e Companion"
+const val APP_NAME = "S10e Companion"
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent {
-            AppRoot()
-        }
-        lifecycleScope.launch {
-            Log.i("S10eCompanion", LlmBootstrap(this@MainActivity).start())
+
+        val crashGuard = CrashGuard(SharedPrefsKeyValue(this))
+        crashGuard.recordStart(System.currentTimeMillis())
+
+        if (crashGuard.inSafeMode(System.currentTimeMillis())) {
+            setContent {
+                // Safe mode: UI only, no speech/agent loops
+                EyesCanvas(mood = Mood.NEUTRAL)
+            }
+        } else {
+            setContent {
+                AppRoot()
+            }
         }
     }
 }

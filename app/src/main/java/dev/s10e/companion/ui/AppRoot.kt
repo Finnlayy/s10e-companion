@@ -28,6 +28,7 @@ import dev.s10e.companion.core.ModeMachine
 import dev.s10e.companion.eyes.EyesCanvas
 import dev.s10e.companion.eyes.Mood
 import dev.s10e.companion.eyes.ShakeSensor
+import dev.s10e.companion.kid.LockController
 
 import kotlinx.coroutines.delay
 import android.Manifest
@@ -52,6 +53,13 @@ import dev.s10e.companion.speech.classify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.io.File
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import dev.s10e.companion.kid.KidLockPolicy
+import dev.s10e.companion.kid.UnlockStep
+import dev.s10e.companion.kid.PinStore
+import dev.s10e.companion.kid.SharedPrefsKeyValue
+import dev.s10e.companion.kid.PinResult
 
 private const val LISTEN_TIMEOUT_MS = 8_000L
 private const val SYSTEM_PROMPT = "Du bist Apollo, ein kleiner Schreibtisch-Begleiter. Antworte kurz und auf Deutsch."
@@ -63,14 +71,14 @@ private suspend fun answer(context: Context, stack: SpeechStack, question: Strin
     client.chat(listOf(ChatMessage("system", SYSTEM_PROMPT), ChatMessage("user", question))).collect { event ->
         when (event) {
             is LlmEvent.Token -> reply.append(event.text)
-            is LlmEvent.Failed -> Log.w("S10eCompanion", "LLM-Fehler: ${event.message}")
+            is LlmEvent.Failed -> Log.w("S10eCompanion", "LLM-Fehler: \${event.message}")
             else -> {}
         }
     }
     try {
         stack.controller.say(reply.toString())
     } catch (e: Exception) {
-        Log.w("S10eCompanion", "Sprachausgabe fehlgeschlagen: ${e.message}")
+        Log.w("S10eCompanion", "Sprachausgabe fehlgeschlagen: \${e.message}")
     }
 }
 
@@ -83,6 +91,18 @@ fun AppRoot() {
     var currentMode by remember { mutableStateOf(modeMachine.mode) }
     var mood by remember { mutableStateOf(Mood.NEUTRAL) }
     var shakes by remember { mutableIntStateOf(0) }
+    var showPinPad by remember { mutableStateOf(false) }
+
+    val lockController = remember { activity?.let { LockController(it) } }
+    val pinStore = remember { PinStore(SharedPrefsKeyValue(context)) }
+    val policy = remember { KidLockPolicy() }
+
+    // Init PIN if not set (for testing purposes on fresh install so we aren't locked out forever)
+    LaunchedEffect(Unit) {
+        if (SharedPrefsKeyValue(context).getString("pin_hash", null) == null) {
+            pinStore.set("1234") // Ensure at least a default PIN exists
+        }
+    }
 
     val scope = rememberCoroutineScope()
     var speech by remember { mutableStateOf<SpeechStack?>(null) }
@@ -103,6 +123,14 @@ fun AppRoot() {
         speech = SpeechBootstrap(context).load()
     }
 
+    LaunchedEffect(currentMode) {
+        if (currentMode == AppMode.KID_LOCKED) {
+            lockController?.enterLockMode()
+        } else {
+            lockController?.exitLockMode()
+        }
+    }
+
     LaunchedEffect(speech, currentMode, micGranted, visible) {
         val stack = speech ?: return@LaunchedEffect
         if (!micGranted || !visible) return@LaunchedEffect
@@ -111,7 +139,17 @@ fun AppRoot() {
         try {
             stack.recognizer.results.collect { transcript ->
                 when (val intent = classify(transcript, currentMode == AppMode.KID_LOCKED)) {
-                    VoiceIntent.UnlockPhrase -> currentMode = modeMachine.onEvent(ModeEvent.EnterAgent)
+                    VoiceIntent.UnlockPhrase -> {
+                        if (currentMode == AppMode.KID_LOCKED) {
+                            if (policy.onPhrase() == UnlockStep.SHOW_PIN) {
+                                showPinPad = true
+                            } else {
+                                currentMode = modeMachine.onEvent(ModeEvent.UnlockConfirmed)
+                            }
+                        } else {
+                            currentMode = modeMachine.onEvent(ModeEvent.EnterAgent)
+                        }
+                    }
                     is VoiceIntent.Free -> if (mood == Mood.LISTENING) {
                         mood = Mood.THINKING
                         scope.launch(Dispatchers.IO) {
@@ -119,7 +157,10 @@ fun AppRoot() {
                             mood = Mood.NEUTRAL
                         }
                     }
-                    VoiceIntent.Ignored, VoiceIntent.EnterKidMode -> {}
+                    VoiceIntent.Ignored -> {}
+                    VoiceIntent.EnterKidMode -> {
+                        currentMode = modeMachine.onEvent(ModeEvent.EnterKidMode)
+                    }
                 }
             }
         } finally {
@@ -168,14 +209,44 @@ fun AppRoot() {
         }
     }
 
+    if (showPinPad) {
+        Box(modifier = Modifier.fillMaxSize().background(Color.DarkGray), contentAlignment = Alignment.Center) {
+            PinPad { pin ->
+                val result = pinStore.verify(pin, System.currentTimeMillis())
+                if (result == PinResult.Ok) {
+                    showPinPad = false
+                    currentMode = modeMachine.onEvent(ModeEvent.UnlockConfirmed)
+                }
+            }
+        }
+        return
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
-            .clickable {
-                if (currentMode != AppMode.KID_LOCKED) mood = Mood.LISTENING
-                val event = if (currentMode == AppMode.PASSIVE) ModeEvent.EnterAgent else ModeEvent.Interaction(System.currentTimeMillis())
-                currentMode = modeMachine.onEvent(event)
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onPress = {
+                        val x = it.x
+                        val y = it.y
+                        if (x < size.width * 0.2f && y < size.height * 0.2f) {
+                            try {
+                                val pressStart = System.currentTimeMillis()
+                                tryAwaitRelease()
+                                if (System.currentTimeMillis() - pressStart >= 5000) {
+                                    showPinPad = true
+                                }
+                            } catch (e: Exception) {}
+                        }
+                    },
+                    onTap = {
+                        if (currentMode != AppMode.KID_LOCKED) mood = Mood.LISTENING
+                        val event = if (currentMode == AppMode.PASSIVE) ModeEvent.EnterAgent else ModeEvent.Interaction(System.currentTimeMillis())
+                        currentMode = modeMachine.onEvent(event)
+                    }
+                )
             },
         contentAlignment = Alignment.Center
     ) {

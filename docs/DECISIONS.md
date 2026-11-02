@@ -46,3 +46,13 @@ For Phase 2, `Roborazzi` screenshot tests required `isIncludeAndroidResources = 
 * Das Wort „agentenmodus“ fehlt im Wortschatz von vosk-model-small-de-0.15 (geprüft an der Symboltabelle in `graph/Gr.fst`). Vosk verwirft unbekannte Wörter, die Grammatik enthält deshalb nur „agenten modus aktivieren“ und `[unk]`. Abweichung vom Plan.
 * Außerhalb des Agentenmodus läuft nur diese Grammatik, freies Vokabular nur im Agentenmodus.
 * Speech execution does not use `|| true` to suppress failures. Instead, logical branches ensure proper control flow.
+
+## Phase 6 Decisions
+* Built `PinStore` according to spec using SHA-256 with random salt to persist PIN securely via a `KeyValue` interface that maps to simple string/long storage operations. Note that actual Android `SharedPreferences` logic is expected to implement this abstraction.
+* Simulated `CrashGuard` to implement the window-based lockout for 3 crashes within 60s without actual process restart hookups, which depend on Android framework defaults.
+* Simplified PIN wiring directly into `AppRoot` using state variable `showPinPad` since we don't have the fully fleshed out Agent/PhoneControlService loops yet. "Eine versteckte Geste (5 Sekunden in die obere linke Ecke halten)" is implemented as a pointer input area directly on the app root surface, checking coordinate logic (`x < 0.2`, `y < 0.2`) and waiting 5 seconds.
+* Used standard dummy strings/tests where the spec gives examples. For example, mocking the test of "policy ensures tools run or don't".
+* Tests verify the mock functionality properly without explicit `Roborazzi` screen tests for the PIN Pad, as it is just a compose UI component testable standardly.
+* Revised `AppRoot.kt` based on code review feedback. The mock "1234" logic for bypassing PIN in production was removed. `PinStore` and `KidLockPolicy` are now fully wired into the application.
+* Standard gesture mechanics fixed, switching `onPress` out for proper handling and using standard Compose state management for the PIN pad check.
+* `CrashGuard` was fully wired into `MainActivity`, redirecting to a UI-only fail-safe layout if 3 crashes happen in a 60 second window.

@@ -13,14 +13,23 @@
         android:label="S10e Companion"
         android:supportsRtl="true"
         android:theme="@android:style/Theme.NoTitleBar.Fullscreen">
+        <receiver android:name=".kid.CompanionAdminReceiver" android:permission="android.permission.BIND_DEVICE_ADMIN" android:exported="true">
+            <meta-data android:name="android.app.device_admin" android:resource="@xml/device_admin" />
+            <intent-filter>
+                <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
+            </intent-filter>
+        </receiver>
         <service android:name=".llm.LlmServerService" android:foregroundServiceType="dataSync" android:exported="false" />
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:theme="@android:style/Theme.NoTitleBar.Fullscreen">
+            android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
+            android:lockTaskMode="if_whitelisted">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+                <category android:name="android.intent.category.HOME" />
+                <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
     </application>
