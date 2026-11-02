@@ -28,6 +28,11 @@ android {
         }
     }
 
+    lint {
+        // Die App kommt nie in den Play Store und zielt bewusst auf Android 12 des S10e.
+        disable += "ExpiredTargetSdkVersion"
+    }
+
     signingConfigs {
         create("release") {
             val keystore = System.getenv("S10E_KEYSTORE")
