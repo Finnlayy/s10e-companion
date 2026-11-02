@@ -8,6 +8,11 @@ import android.util.Log
 
 class LockController(private val activity: Activity) {
 
+    fun isDeviceOwner(): Boolean {
+        val dpm = activity.getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
+        return dpm.isDeviceOwnerApp(activity.packageName)
+    }
+
     fun enterLockMode() {
         val dpm = activity.getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
         val adminName = ComponentName(activity, CompanionAdminReceiver::class.java)

@@ -53,15 +53,24 @@ import dev.s10e.companion.speech.classify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.io.File
-import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
+import androidx.compose.foundation.layout.Column
+import androidx.compose.material3.Button
+import androidx.compose.material3.TextButton
 import androidx.compose.ui.input.pointer.pointerInput
 import dev.s10e.companion.kid.KidLockPolicy
+import dev.s10e.companion.kid.KidState
 import dev.s10e.companion.kid.UnlockStep
 import dev.s10e.companion.kid.PinStore
 import dev.s10e.companion.kid.SharedPrefsKeyValue
 import dev.s10e.companion.kid.PinResult
 
+private enum class PinScreen { SET_FOR_KID_MODE, UNLOCK, DEVICE_OWNER }
+
 private const val LISTEN_TIMEOUT_MS = 8_000L
+private const val PIN_GESTURE_MS = 5_000L
 private const val SYSTEM_PROMPT = "Du bist Apollo, ein kleiner Schreibtisch-Begleiter. Antworte kurz und auf Deutsch."
 
 private suspend fun answer(context: Context, stack: SpeechStack, question: String) {
@@ -71,14 +80,14 @@ private suspend fun answer(context: Context, stack: SpeechStack, question: Strin
     client.chat(listOf(ChatMessage("system", SYSTEM_PROMPT), ChatMessage("user", question))).collect { event ->
         when (event) {
             is LlmEvent.Token -> reply.append(event.text)
-            is LlmEvent.Failed -> Log.w("S10eCompanion", "LLM-Fehler: \${event.message}")
+            is LlmEvent.Failed -> Log.w("S10eCompanion", "LLM-Fehler: ${event.message}")
             else -> {}
         }
     }
     try {
         stack.controller.say(reply.toString())
     } catch (e: Exception) {
-        Log.w("S10eCompanion", "Sprachausgabe fehlgeschlagen: \${e.message}")
+        Log.w("S10eCompanion", "Sprachausgabe fehlgeschlagen: ${e.message}")
     }
 }
 
@@ -87,21 +96,25 @@ fun AppRoot() {
     val context = LocalContext.current
     val activity = context as? Activity
 
-    val modeMachine = remember { ModeMachine(AppMode.PASSIVE) }
+    val kidState = remember { KidState(SharedPrefsKeyValue(context)) }
+    val modeMachine = remember { ModeMachine(if (kidState.locked) AppMode.KID_LOCKED else AppMode.PASSIVE) }
     var currentMode by remember { mutableStateOf(modeMachine.mode) }
     var mood by remember { mutableStateOf(Mood.NEUTRAL) }
     var shakes by remember { mutableIntStateOf(0) }
-    var showPinPad by remember { mutableStateOf(false) }
+    var pinScreen by remember { mutableStateOf<PinScreen?>(null) }
+    var pinMessage by remember { mutableStateOf<String?>(null) }
 
     val lockController = remember { activity?.let { LockController(it) } }
     val pinStore = remember { PinStore(SharedPrefsKeyValue(context)) }
     val policy = remember { KidLockPolicy() }
 
-    // Init PIN if not set (for testing purposes on fresh install so we aren't locked out forever)
-    LaunchedEffect(Unit) {
-        if (SharedPrefsKeyValue(context).getString("pin_hash", null) == null) {
-            pinStore.set("1234") // Ensure at least a default PIN exists
-        }
+    fun openPin(screen: PinScreen) {
+        pinMessage = null
+        pinScreen = screen
+    }
+
+    fun enterKidMode() {
+        if (pinStore.isSet()) currentMode = modeMachine.onEvent(ModeEvent.EnterKidMode) else openPin(PinScreen.SET_FOR_KID_MODE)
     }
 
     val scope = rememberCoroutineScope()
@@ -124,6 +137,7 @@ fun AppRoot() {
     }
 
     LaunchedEffect(currentMode) {
+        kidState.locked = currentMode == AppMode.KID_LOCKED
         if (currentMode == AppMode.KID_LOCKED) {
             lockController?.enterLockMode()
         } else {
@@ -142,7 +156,7 @@ fun AppRoot() {
                     VoiceIntent.UnlockPhrase -> {
                         if (currentMode == AppMode.KID_LOCKED) {
                             if (policy.onPhrase() == UnlockStep.SHOW_PIN) {
-                                showPinPad = true
+                                openPin(PinScreen.UNLOCK)
                             } else {
                                 currentMode = modeMachine.onEvent(ModeEvent.UnlockConfirmed)
                             }
@@ -158,9 +172,7 @@ fun AppRoot() {
                         }
                     }
                     VoiceIntent.Ignored -> {}
-                    VoiceIntent.EnterKidMode -> {
-                        currentMode = modeMachine.onEvent(ModeEvent.EnterKidMode)
-                    }
+                    VoiceIntent.EnterKidMode -> enterKidMode()
                 }
             }
         } finally {
@@ -209,15 +221,40 @@ fun AppRoot() {
         }
     }
 
-    if (showPinPad) {
-        Box(modifier = Modifier.fillMaxSize().background(Color.DarkGray), contentAlignment = Alignment.Center) {
-            PinPad { pin ->
-                val result = pinStore.verify(pin, System.currentTimeMillis())
-                if (result == PinResult.Ok) {
-                    showPinPad = false
-                    currentMode = modeMachine.onEvent(ModeEvent.UnlockConfirmed)
+    val screen = pinScreen
+    if (screen != null) {
+        Box(modifier = Modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.Center) {
+            if (screen == PinScreen.DEVICE_OWNER) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Button(onClick = {
+                        lockController?.clearDeviceOwnerApp()
+                        pinScreen = null
+                    }) { Text("Gerätebesitz aufheben") }
+                    TextButton(onClick = { pinScreen = null }) { Text("Fertig") }
                 }
+                return@Box
             }
+            PinPad(
+                title = if (screen == PinScreen.UNLOCK) "PIN eingeben" else "Neue PIN festlegen",
+                message = pinMessage,
+                onSubmit = { pin ->
+                    if (screen == PinScreen.SET_FOR_KID_MODE) {
+                        pinStore.set(pin)
+                        pinScreen = null
+                        currentMode = modeMachine.onEvent(ModeEvent.EnterKidMode)
+                    } else {
+                        when (val result = pinStore.verify(pin, System.currentTimeMillis())) {
+                            PinResult.Ok -> {
+                                currentMode = modeMachine.onEvent(ModeEvent.UnlockConfirmed)
+                                pinScreen = if (lockController?.isDeviceOwner() == true) PinScreen.DEVICE_OWNER else null
+                            }
+                            PinResult.Wrong -> pinMessage = "Falsche PIN"
+                            is PinResult.Locked -> pinMessage = "Gesperrt für ${(result.untilMs - System.currentTimeMillis()) / 1000 + 1} s"
+                        }
+                    }
+                },
+                onCancel = { pinScreen = null }
+            )
         }
         return
     }
@@ -226,27 +263,10 @@ fun AppRoot() {
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
-            .pointerInput(Unit) {
-                detectTapGestures(
-                    onPress = {
-                        val x = it.x
-                        val y = it.y
-                        if (x < size.width * 0.2f && y < size.height * 0.2f) {
-                            try {
-                                val pressStart = System.currentTimeMillis()
-                                tryAwaitRelease()
-                                if (System.currentTimeMillis() - pressStart >= 5000) {
-                                    showPinPad = true
-                                }
-                            } catch (e: Exception) {}
-                        }
-                    },
-                    onTap = {
-                        if (currentMode != AppMode.KID_LOCKED) mood = Mood.LISTENING
-                        val event = if (currentMode == AppMode.PASSIVE) ModeEvent.EnterAgent else ModeEvent.Interaction(System.currentTimeMillis())
-                        currentMode = modeMachine.onEvent(event)
-                    }
-                )
+            .clickable {
+                if (currentMode != AppMode.KID_LOCKED) mood = Mood.LISTENING
+                val event = if (currentMode == AppMode.PASSIVE) ModeEvent.EnterAgent else ModeEvent.Interaction(System.currentTimeMillis())
+                currentMode = modeMachine.onEvent(event)
             },
         contentAlignment = Alignment.Center
     ) {
@@ -255,5 +275,18 @@ fun AppRoot() {
             AppMode.AGENT -> Text(text = "[Terminal Placeholder]", color = Color.White)
             AppMode.KID_LOCKED -> EyesCanvas(mood)
         }
+        // Versteckter Ausweg, er funktioniert auch ohne Mikrofon und Erkennung.
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .fillMaxSize(0.2f)
+                .pointerInput(Unit) {
+                    awaitEachGesture {
+                        awaitFirstDown()
+                        val released = withTimeoutOrNull(PIN_GESTURE_MS) { waitForUpOrCancellation() ?: Unit }
+                        if (released == null) openPin(if (pinStore.isSet()) PinScreen.UNLOCK else PinScreen.SET_FOR_KID_MODE)
+                    }
+                }
+        )
     }
 }

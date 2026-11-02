@@ -53,6 +53,8 @@ For Phase 2, `Roborazzi` screenshot tests required `isIncludeAndroidResources = 
 * Simplified PIN wiring directly into `AppRoot` using state variable `showPinPad` since we don't have the fully fleshed out Agent/PhoneControlService loops yet. "Eine versteckte Geste (5 Sekunden in die obere linke Ecke halten)" is implemented as a pointer input area directly on the app root surface, checking coordinate logic (`x < 0.2`, `y < 0.2`) and waiting 5 seconds.
 * Used standard dummy strings/tests where the spec gives examples. For example, mocking the test of "policy ensures tools run or don't".
 * Tests verify the mock functionality properly without explicit `Roborazzi` screen tests for the PIN Pad, as it is just a compose UI component testable standardly.
-* Revised `AppRoot.kt` based on code review feedback. The mock "1234" logic for bypassing PIN in production was removed. `PinStore` and `KidLockPolicy` are now fully wired into the application.
-* Standard gesture mechanics fixed, switching `onPress` out for proper handling and using standard Compose state management for the PIN pad check.
-* `CrashGuard` was fully wired into `MainActivity`, redirecting to a UI-only fail-safe layout if 3 crashes happen in a 60 second window.
+* Es gibt keine Standard-PIN. Beim ersten Einstieg in den Kindermodus legt die Person eine PIN fest, die Mindestlänge ist 4.
+* In den Kindermodus führt der Sprachbefehl „kinder modus aktivieren“ im Agentenmodus, Phase 7 ergänzt einen Knopf im Terminal. „kindermodus“ fehlt wie „agentenmodus“ im Vosk-Wortschatz.
+* `KidState` speichert die Sperre. Ohne das hebt jeder Neustart oder Absturz sie auf.
+* `CrashGuard` zählt Prozessstarts, nicht Neuaufbauten der Activity. Der sichere Bildschirm startet weder Sprache noch LLM und hält eine aktive Sperre.
+* Die Geste löst nach 5 s Halten aus, nicht erst beim Loslassen. Nach richtiger PIN bietet die App als Device Owner „Gerätebesitz aufheben“ an.

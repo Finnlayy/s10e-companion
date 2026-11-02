@@ -27,6 +27,8 @@ class PinStore(private val prefs: KeyValue) {
         prefs.setLong("pin_lockout_until", 0L)
     }
 
+    fun isSet(): Boolean = prefs.getString("pin_hash", null) != null
+
     fun verify(pin: String, nowMs: Long): PinResult {
         val lockoutUntil = prefs.getLong("pin_lockout_until", 0L)
         if (nowMs < lockoutUntil) {

@@ -21,10 +21,8 @@ class CrashGuardTest {
 
     @Test
     fun crashGuard_safeMode_keepsLockActive() {
-        // Safe mode blocks normal operations but stays in KID_LOCKED effectively.
-        // It should reset after window or when confirmed? Spec says "sicherer Bildschirm ohne Agentenfunktionen, Sperre bleibt aktiv"
-        // Here we just test it recovers after the window
         val prefs = MemoryKeyValue()
+        KidState(prefs).locked = true
         val guard = CrashGuard(prefs, maxCrashes = 3, windowMs = 60_000)
         val now = 100_000L
 
@@ -33,6 +31,7 @@ class CrashGuardTest {
         guard.recordStart(now + 2000)
 
         assertEquals(true, guard.inSafeMode(now + 3000))
+        assertEquals(true, KidState(prefs).locked)
 
         // After 60s window from the FIRST crash, that first crash expires.
         assertEquals(false, guard.inSafeMode(now + 60_001L))

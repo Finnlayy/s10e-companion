@@ -12,6 +12,7 @@ import java.util.UUID
 class LlmServerService : Service() {
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private var process: Process? = null
+    private var serverJob: Job? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -35,8 +36,9 @@ class LlmServerService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val modelPath = intent?.getStringExtra("MODEL_PATH") ?: return START_NOT_STICKY
+        if (serverJob?.isActive == true) return START_STICKY
 
-        scope.launch {
+        serverJob = scope.launch {
             val apiKeyFile = File(filesDir, "api_key.txt")
             if (!apiKeyFile.exists()) {
                 apiKeyFile.writeText(UUID.randomUUID().toString())

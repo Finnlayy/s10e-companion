@@ -26,6 +26,14 @@ class PinStoreTest {
     }
 
     @Test
+    fun pin_isSet_onlyAfterSet() {
+        val pinStore = PinStore(MemoryKeyValue())
+        assertEquals(false, pinStore.isSet())
+        pinStore.set("4711")
+        assertEquals(true, pinStore.isSet())
+    }
+
+    @Test
     fun pin_lockoutAfter5Wrong_30s() {
         val prefs = MemoryKeyValue()
         val pinStore = PinStore(prefs)
