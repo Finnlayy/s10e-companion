@@ -363,17 +363,20 @@ fun AppRoot() {
             AppMode.KID_LOCKED -> EyesCanvas(mood = mood, lookX = lookX, lookY = lookY)
         }
         // Versteckter Ausweg, er funktioniert auch ohne Mikrofon und Erkennung.
-        Box(
-            modifier = Modifier
-                .align(Alignment.TopStart)
-                .fillMaxSize(0.2f)
-                .pointerInput(Unit) {
-                    awaitEachGesture {
-                        awaitFirstDown()
-                        val released = withTimeoutOrNull(PIN_GESTURE_MS) { waitForUpOrCancellation() ?: Unit }
-                        if (released == null) openPin(if (pinStore.isSet()) PinScreen.UNLOCK else PinScreen.SET_FOR_KID_MODE)
+        // Im Terminal entfällt das Feld, es läge sonst über den Knöpfen.
+        if (currentMode != AppMode.AGENT) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .fillMaxSize(0.2f)
+                    .pointerInput(Unit) {
+                        awaitEachGesture {
+                            awaitFirstDown()
+                            val released = withTimeoutOrNull(PIN_GESTURE_MS) { waitForUpOrCancellation() ?: Unit }
+                            if (released == null) openPin(if (pinStore.isSet()) PinScreen.UNLOCK else PinScreen.SET_FOR_KID_MODE)
+                        }
                     }
-                }
-        )
+            )
+        }
     }
 }
