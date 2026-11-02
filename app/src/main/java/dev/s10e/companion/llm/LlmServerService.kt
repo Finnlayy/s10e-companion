@@ -66,6 +66,8 @@ class LlmServerService : Service() {
                         "-cram", "256",
                         "-ctxcp", "2",
                         "--no-mmproj",
+                        // Ohne das liegen die Gewichte doppelt im RAM, und lmkd beendet beim Laden auch die App im Vordergrund.
+                        "--no-repack",
                         "--jinja"
                     ).apply {
                         environment()["LD_LIBRARY_PATH"] = libDir

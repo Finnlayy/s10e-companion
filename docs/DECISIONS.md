@@ -58,3 +58,6 @@ For Phase 2, `Roborazzi` screenshot tests required `isIncludeAndroidResources = 
 * `KidState` speichert die Sperre. Ohne das hebt jeder Neustart oder Absturz sie auf.
 * `CrashGuard` zählt Prozessstarts, nicht Neuaufbauten der Activity. Der sichere Bildschirm startet weder Sprache noch LLM und hält eine aktive Sperre.
 * Die Geste löst nach 5 s Halten aus, nicht erst beim Loslassen. Nach richtiger PIN bietet die App als Device Owner „Gerätebesitz aufheben“ an.
+
+## Speicher auf dem S10e
+* `llama-server` läuft mit `--no-repack`. Gemessen am Gerät mit -c 4096: mit Repack 3,4 bis 3,6 GB Spitze, 17 s Ladezeit, 14 bis 18 lmkd-Kills, 1 von 3 Kaltstarts beendete auch die App im Vordergrund, 7 bis 8,6 Token/s. Ohne Repack 2,5 GB, 4 s, keine Kills, 3,2 GB frei, 5,5 Token/s. Stabilität geht vor, denn die Kindersperre darf nicht wegfallen.
