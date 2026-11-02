@@ -33,6 +33,18 @@ class VaultStoreTest {
     }
 
     @Test
+    fun moveCard_movesLineToColumn() {
+        store.ensureLayout()
+        store.appendInbox("Milch kaufen", 1L)
+
+        assertTrue(store.moveCard("Milch kaufen", "done"))
+
+        val board = store.load().first
+        assertTrue(board["Todo"].orEmpty().isEmpty())
+        assertEquals(listOf("- [x] Milch kaufen"), board["Done"])
+    }
+
+    @Test
     fun save_writesAtomically() {
         store.ensureLayout()
         val (board, mtime) = store.load()

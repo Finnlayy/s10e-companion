@@ -21,7 +21,8 @@ class LlmClientImpl(
 
     private suspend fun kotlinx.coroutines.flow.FlowCollector<LlmEvent>.processStreamLine(
         line: String,
-        state: ParseState
+        state: ParseState,
+        isToolCall: Boolean
     ) {
         if (line.startsWith("data: ")) {
             val data = line.substring(6)
@@ -35,14 +36,8 @@ class LlmClientImpl(
             if (choices != null && choices.length() > 0) {
                 val delta = choices.getJSONObject(0).optJSONObject("delta") ?: JSONObject()
 
-                if (delta.has("tool_calls")) {
-                    val toolCalls = delta.getJSONArray("tool_calls")
-                    if (toolCalls.length() > 0) {
-                        val func = toolCalls.getJSONObject(0).getJSONObject("function")
-                        val name = func.optString("name")
-                        val args = func.optString("arguments")
-                        emit(LlmEvent.ToolCall(name, args))
-                    }
+                if (isToolCall) {
+                    if (!delta.isNull("content")) state.toolCallBuffer += delta.optString("content")
                 } else if (delta.has("content") && !delta.isNull("content")) {
                     val content = delta.getString("content")
                     state.thinkBuffer += content
@@ -115,19 +110,23 @@ class LlmClientImpl(
             payload.put("stream", true)
             payload.put("max_tokens", 256)
 
-            if (tools.isNotEmpty()) {
-                val toolsArray = JSONArray()
-                tools.forEach {
-                    val func = JSONObject()
-                    func.put("name", it.name)
-                    func.put("description", it.description)
-
-                    val tool = JSONObject()
-                    tool.put("type", "function")
-                    tool.put("function", func)
-                    toolsArray.put(tool)
-                }
-                payload.put("tools", toolsArray)
+            // Das GGUF hat keine Tool-Vorlage, deshalb erzwingt ein JSON-Schema die Werkzeugwahl.
+            val isToolCall = tools.isNotEmpty()
+            if (isToolCall) {
+                payload.put("temperature", 0.1)
+                val names = JSONArray().put("none")
+                tools.forEach { names.put(it.name) }
+                val properties = JSONObject()
+                    .put("tool", JSONObject().put("type", "string").put("enum", names))
+                    .put("arguments", JSONObject().put("type", "object"))
+                val schema = JSONObject()
+                    .put("type", "object")
+                    .put("properties", properties)
+                    .put("required", JSONArray().put("tool").put("arguments"))
+                payload.put(
+                    "response_format",
+                    JSONObject().put("type", "json_schema").put("json_schema", JSONObject().put("name", "action").put("schema", schema))
+                )
             }
 
             conn.outputStream.use { it.write(payload.toString().toByteArray()) }
@@ -137,7 +136,13 @@ class LlmClientImpl(
 
             while (coroutineContext.isActive) {
                 val line = reader.readLine() ?: break
-                processStreamLine(line, state)
+                processStreamLine(line, state, isToolCall)
+            }
+
+            if (isToolCall && state.toolCallBuffer.isNotEmpty()) {
+                val action = JSONObject(state.toolCallBuffer)
+                val args = action.optJSONObject("arguments") ?: JSONObject()
+                emit(LlmEvent.ToolCall(action.getString("tool"), args.toString()))
             }
         } catch (e: Exception) {
             emit(LlmEvent.Failed(e.message ?: "Unknown error"))
@@ -150,6 +155,7 @@ class LlmClientImpl(
     private class ParseState {
         var inThink = false
         var thinkBuffer = ""
+        var toolCallBuffer = ""
     }
 
     // Exposed ONLY for unit tests

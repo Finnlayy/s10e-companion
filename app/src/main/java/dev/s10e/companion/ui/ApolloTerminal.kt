@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
@@ -33,36 +34,37 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import dev.s10e.companion.eyes.Mood
-import dev.s10e.companion.llm.ChatMessage
-import dev.s10e.companion.llm.LlmClientImpl
-import dev.s10e.companion.llm.LlmEvent
+import dev.s10e.companion.agent.AgentRuntime
+import dev.s10e.companion.agent.PhoneControlService
+import dev.s10e.companion.agent.ToolDispatcher
+import dev.s10e.companion.agent.parseCommand
 import dev.s10e.companion.vault.VaultStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
 
-import android.content.Context
 import kotlinx.coroutines.CoroutineScope
 
+const val VAULT_PATH = "/sdcard/Documents/ObsidianVault/"
 private const val HEALTH_WAIT_S = 60
 
 fun handleTerminalInput(
     text: String,
-    context: Context,
     scope: CoroutineScope,
-    vaultStore: VaultStore,
+    agent: AgentRuntime,
     onMoodChange: (Mood) -> Unit,
     onInteraction: () -> Unit,
     isServerHealthy: () -> Boolean,
-    updateReply: (String) -> Unit
+    updateReply: (String) -> Unit,
+    onBoardChanged: () -> Unit
 ) {
     scope.launch(Dispatchers.IO) {
-        if (!isServerHealthy()) {
+        val isCommand = parseCommand(text) != null
+        if (!isCommand && !isServerHealthy()) {
             updateReply("Modell lädt…")
             var waited = 0
             while (!isServerHealthy() && waited < HEALTH_WAIT_S) {
@@ -75,34 +77,18 @@ fun handleTerminalInput(
                 return@launch
             }
         }
-        var currentReply = ""
-        updateReply(currentReply)
+        updateReply("")
         onMoodChange(Mood.THINKING)
         try {
-            val apiKey = File(context.filesDir, "api_key.txt").readText().trim()
-            val client = LlmClientImpl(apiKeyProvider = { apiKey })
-            client.chat(listOf(
-                ChatMessage("system", "Du bist Apollo, ein kleiner Schreibtisch-Begleiter. Antworte kurz und auf Deutsch."),
-                ChatMessage("user", text)
-            )).collect { event ->
-                onInteraction() // keep awake during stream
-                when (event) {
-                    is LlmEvent.Token -> {
-                        currentReply += event.text
-                        updateReply(currentReply)
-                    }
-                    is LlmEvent.Failed -> {
-                        currentReply += "\n[Fehler: ${event.message}]"
-                        updateReply(currentReply)
-                    }
-                    else -> {}
-                }
+            agent.handle(text) { partial ->
+                updateReply(partial)
+                onInteraction()
             }
         } catch (e: Exception) {
-            currentReply += "\n[Fehler: ${e.message}]"
-            updateReply(currentReply)
+            updateReply("[Fehler: ${e.message}]")
         }
         onMoodChange(Mood.NEUTRAL)
+        onBoardChanged()
     }
 }
 
@@ -114,7 +100,9 @@ fun ApolloTerminal(
     mood: Mood,
     reply: String,
     onReplyChange: (String) -> Unit,
-    onNote: suspend (String) -> Unit
+    agent: AgentRuntime,
+    vaultVersion: Int,
+    onBoardChanged: () -> Unit
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -126,7 +114,9 @@ fun ApolloTerminal(
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) Environment.isExternalStorageManager() else true
     }
 
-    val vaultStore = remember { VaultStore(File("/sdcard/Documents/ObsidianVault/")) }
+    val accessibilityEnabled = remember(lifecycleState) { PhoneControlService.instance != null }
+
+    val vaultStore = remember { VaultStore(File(VAULT_PATH)) }
     var boardState by remember { mutableStateOf(dev.s10e.companion.vault.Board()) }
 
     var inputText by remember { mutableStateOf("") }
@@ -134,7 +124,7 @@ fun ApolloTerminal(
     // Health check state
     var isServerHealthy by remember { mutableStateOf(false) }
 
-    LaunchedEffect(hasStoragePermission) {
+    LaunchedEffect(hasStoragePermission, vaultVersion) {
         if (hasStoragePermission) {
             scope.launch(Dispatchers.IO) {
                 try {
@@ -198,6 +188,21 @@ fun ApolloTerminal(
                     Text("Speicher freigeben")
                 }
             }
+            if (!accessibilityEnabled) {
+                Button(
+                    onClick = { context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) },
+                    modifier = Modifier.padding(start = 8.dp)
+                ) {
+                    Text("Agent erlauben")
+                }
+            }
+            Button(
+                onClick = { ToolDispatcher.killSwitch = true },
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFB71C1C)),
+                modifier = Modifier.padding(start = 8.dp)
+            ) {
+                Text("Not-Aus")
+            }
         }
 
         // Body: Kanban Board
@@ -257,16 +262,7 @@ fun ApolloTerminal(
                         val text = inputText.trim()
                         if (text.isNotEmpty()) {
                             onInteraction()
-                            if (text.startsWith("Notiz", ignoreCase = true) || text.startsWith("Aufgabe", ignoreCase = true)) {
-                                scope.launch {
-                                    onNote(text)
-                                    if (hasStoragePermission) {
-                                        boardState = withContext(Dispatchers.IO) { vaultStore.load().first }
-                                    }
-                                }
-                            } else {
-                                handleTerminalInput(text, context, scope, vaultStore, onMoodChange, onInteraction, { isServerHealthy }, onReplyChange)
-                            }
+                            handleTerminalInput(text, scope, agent, onMoodChange, onInteraction, { isServerHealthy }, onReplyChange, onBoardChanged)
                             inputText = ""
                         }
                     }

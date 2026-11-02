@@ -6,6 +6,10 @@ import android.app.Service
 import android.content.Intent
 import android.os.IBinder
 import kotlinx.coroutines.*
+import android.app.PendingIntent
+import android.content.BroadcastReceiver
+import android.content.Context
+import dev.s10e.companion.agent.ToolDispatcher
 import java.io.File
 import java.util.UUID
 
@@ -25,10 +29,16 @@ class LlmServerService : Service() {
         )
         getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
 
+        val killIntent = PendingIntent.getBroadcast(
+            this, 0, Intent(this, KillSwitchReceiver::class.java), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val killAction = android.app.Notification.Action.Builder(null, "Not-Aus", killIntent).build()
+
         val notification = android.app.Notification.Builder(this, "llm_service")
             .setContentTitle("S10e Companion")
             .setContentText("AI Server running")
             .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .addAction(killAction)
             .build()
 
         startForeground(1, notification)
@@ -104,5 +114,11 @@ class LlmServerService : Service() {
         super.onDestroy()
         scope.cancel()
         process?.destroy()
+    }
+}
+
+class KillSwitchReceiver : BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent) {
+        ToolDispatcher.killSwitch = true
     }
 }

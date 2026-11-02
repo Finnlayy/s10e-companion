@@ -103,6 +103,18 @@ class VaultStore(private val root: File) {
         }
     }
 
+    fun moveCard(text: String, column: String): Boolean {
+        return lock.write {
+            val (board, mtime) = load()
+            val target = board.keys.firstOrNull { it.equals(column, ignoreCase = true) && it.isNotEmpty() } ?: return false
+            val source = board.keys.firstOrNull { key -> key.isNotEmpty() && board[key].orEmpty().any { it.endsWith(" $text") } } ?: return false
+            val line = board[source].orEmpty().first { it.endsWith(" $text") }
+            board[source] = board[source].orEmpty() - line
+            board[target] = board[target].orEmpty() + line
+            save(board, mtime) is SaveResult.Saved
+        }
+    }
+
     private fun mergeBoards(theirs: Board, ours: Board): Board {
         // Keep theirs as base, append only *new* items from ours.
         val merged = Board()
