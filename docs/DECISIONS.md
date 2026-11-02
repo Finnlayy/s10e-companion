@@ -94,3 +94,11 @@ For Phase 2, `Roborazzi` screenshot tests required `isIncludeAndroidResources = 
 
 ## Nachtest
 * Fragen und „Lies…“ bekommen keine Werkzeuge mehr, weil das Modell bei „Was steht auf dem Bildschirm“ Argumente und Tipps erfand. Nennt der Auftrag den Bildschirm, ruft der Code `read_screen` selbst auf, das Modell formuliert nur die Antwort.
+
+## Augen und PIN-Feld
+* Das PIN-Feld brauchte nebeneinander 474 dp, das S10e hat im Hochformat 384 dp. 3, 6, 9 und OK lagen außerhalb, eine PIN ließ sich deshalb nie speichern und der Kindermodus nicht betreten. Unter 490 dp stehen die Spalten jetzt untereinander. Die PIN bleibt einmalig, sonst gäbe es keinen Rückweg aus der Sperre.
+* `ShakeDetector` nutzte die Werte des Prototyps (23/48/5), der Differenzen mit Schwerkraft bei etwa 60 Hz gemessen hat. Der Sensor hier liefert lineare Beschleunigung, im Test am Gerät lag die Spitze bei 13 m/s² und erreichte die Schwelle nie. Neu sind 10/20/1 bei `SENSOR_DELAY_GAME`, geschätzt und am Gerät noch zu bestätigen.
+* CameraX lieferte 1088 x 1088 statt 160 x 120 und ungedrehte Bilder. `shrinkUpright` dreht das Bild aufrecht und rechnet auf 48 x 64 herunter. `pixelDelta` 28 und `minPixels` 72 entsprechen den Verhältnissen des Prototyps.
+* Der Blick geht nach 2,5 s ohne Bewegung zurück zur Mitte und wird weich animiert.
+* Neigen und Hochheben gab es nicht. `TiltTracker` vergleicht die Schwerkraft mit einer langsam folgenden Ruhelage, die Augen rutschen zur tieferen Seite und Hochheben zeigt kurz HAPPY.
+* Die Videovorlagen gelten für das Gesicht. Motoren entfallen, das Handy bewegt sich nicht selbst.

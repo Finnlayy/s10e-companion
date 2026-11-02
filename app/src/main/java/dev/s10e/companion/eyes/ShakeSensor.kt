@@ -56,7 +56,7 @@ fun ShakeSensor(onShake: () -> Unit) {
             override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
         }
         
-        sensorManager.registerListener(listener, sensor, SensorManager.SENSOR_DELAY_UI)
+        sensorManager.registerListener(listener, sensor, SensorManager.SENSOR_DELAY_GAME)
         
         onDispose {
             sensorManager.unregisterListener(listener)

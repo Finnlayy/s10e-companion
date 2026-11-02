@@ -4,7 +4,32 @@ import kotlin.math.abs
 
 data class Motion(val centerX: Float, val centerY: Float, val pixels: Int)
 
-class MotionDetector(val pixelDelta: Int = 55, val minPixels: Int = 18) {
+const val GRID_WIDTH = 48
+const val GRID_HEIGHT = 64
+
+/** Dreht das Kamerabild aufrecht und verkleinert es auf das Raster, für das die Schwellen gelten. */
+fun shrinkUpright(luma: ByteArray, w: Int, h: Int, rotationDegrees: Int, outW: Int = GRID_WIDTH, outH: Int = GRID_HEIGHT): ByteArray {
+    val uprightW = if (rotationDegrees % 180 == 0) w else h
+    val uprightH = if (rotationDegrees % 180 == 0) h else w
+    val out = ByteArray(outW * outH)
+    for (dy in 0 until outH) {
+        val uy = (dy * 2 + 1) * uprightH / (2 * outH)
+        for (dx in 0 until outW) {
+            val ux = (dx * 2 + 1) * uprightW / (2 * outW)
+            val index = when (rotationDegrees) {
+                90 -> (h - 1 - ux) * w + uy
+                180 -> (h - 1 - uy) * w + (w - 1 - ux)
+                270 -> ux * w + (w - 1 - uy)
+                else -> uy * w + ux
+            }
+            out[dy * outW + dx] = luma[index]
+        }
+    }
+    return out
+}
+
+/** Der Prototyp summierte Rot und Grün gegen 55, auf einem Kanal entspricht das 28. 72 sind 2,3 % des Rasters wie dort. */
+class MotionDetector(val pixelDelta: Int = 28, val minPixels: Int = 72) {
     private var prevFrame: ByteArray? = null
 
     fun onFrame(luma: ByteArray, w: Int, h: Int): Motion? {

@@ -74,7 +74,11 @@ fun CameraPresence(onMotion: (Motion) -> Unit) {
                 val now = SystemClock.elapsedRealtime()
                 if (now - lastAnalysisMs >= ANALYSIS_INTERVAL_MS) {
                     lastAnalysisMs = now
-                    detector.onFrame(it.lumaBytes(), it.width, it.height)?.let(currentOnMotion)
+                    val grid = shrinkUpright(it.lumaBytes(), it.width, it.height, it.imageInfo.rotationDegrees)
+                    detector.onFrame(grid, GRID_WIDTH, GRID_HEIGHT)?.let { motion ->
+                        Log.d("S10eCompanion", "Bewegung x=${motion.centerX} y=${motion.centerY} px=${motion.pixels}")
+                        currentOnMotion(motion)
+                    }
                 }
             }
         }
