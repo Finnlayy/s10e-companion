@@ -43,7 +43,7 @@ class LlmClientImpl(
                         val args = func.optString("arguments")
                         emit(LlmEvent.ToolCall(name, args))
                     }
-                } else if (delta.has("content")) {
+                } else if (delta.has("content") && !delta.isNull("content")) {
                     val content = delta.getString("content")
                     state.thinkBuffer += content
                     processThinkBuffer(state)

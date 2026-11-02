@@ -250,6 +250,7 @@ fun ApolloTerminal(
                     onInteraction()
                 },
                 modifier = Modifier.weight(1f),
+                singleLine = true,
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
                 keyboardActions = KeyboardActions(
                     onSend = {
