@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.padding
@@ -182,55 +183,63 @@ fun ApolloTerminal(
                 .padding(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Button(onClick = { onEnterKidMode() }) {
-                Text("Kindermodus")
-            }
-            Button(
-                onClick = {
-                    showPlugins = true
-                    onInteraction()
-                },
-                modifier = Modifier.padding(start = 8.dp)
+            // Im Hochformat reicht die Breite nicht für alle Knöpfe, der Not-Aus bleibt deshalb außerhalb des Scrollbereichs.
+            Row(
+                modifier = Modifier
+                    .weight(1f)
+                    .horizontalScroll(rememberScrollState()),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Plugins")
-            }
-            if (showPlugins) {
-                var openCodeStatus by remember { mutableStateOf("…") }
-                LaunchedEffect(Unit) {
-                    openCodeStatus = withContext(Dispatchers.IO) { OpenCodeClient(SharedPrefsKeyValue(context)).fetchServerStatus() }
+                Button(onClick = { onEnterKidMode() }) {
+                    Text("Kindermodus")
                 }
-                AlertDialog(
-                    onDismissRequest = { showPlugins = false },
-                    title = { Text("Plugins, OpenCode: $openCodeStatus") },
-                    text = {
-                        Box(modifier = Modifier.fillMaxWidth().fillMaxHeight(0.8f)) {
-                            PluginPanel(File(context.filesDir, "plugins/index.html"))
-                        }
-                    },
-                    confirmButton = {
-                        Button(onClick = { showPlugins = false }) { Text("Schließen") }
-                    }
-                )
-            }
-            if (!hasStoragePermission) {
                 Button(
                     onClick = {
-                        val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {
-                            data = Uri.parse("package:${context.packageName}")
-                        }
-                        context.startActivity(intent)
+                        showPlugins = true
+                        onInteraction()
                     },
                     modifier = Modifier.padding(start = 8.dp)
                 ) {
-                    Text("Speicher freigeben")
+                    Text("Plugins")
                 }
-            }
-            if (!accessibilityEnabled) {
-                Button(
-                    onClick = { context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) },
-                    modifier = Modifier.padding(start = 8.dp)
-                ) {
-                    Text("Agent erlauben")
+                if (showPlugins) {
+                    var openCodeStatus by remember { mutableStateOf("…") }
+                    LaunchedEffect(Unit) {
+                        openCodeStatus = withContext(Dispatchers.IO) { OpenCodeClient(SharedPrefsKeyValue(context)).fetchServerStatus() }
+                    }
+                    AlertDialog(
+                        onDismissRequest = { showPlugins = false },
+                        title = { Text("Plugins, OpenCode: $openCodeStatus") },
+                        text = {
+                            Box(modifier = Modifier.fillMaxWidth().fillMaxHeight(0.8f)) {
+                                PluginPanel(File(context.filesDir, "plugins/index.html"))
+                            }
+                        },
+                        confirmButton = {
+                            Button(onClick = { showPlugins = false }) { Text("Schließen") }
+                        }
+                    )
+                }
+                if (!hasStoragePermission) {
+                    Button(
+                        onClick = {
+                            val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {
+                                data = Uri.parse("package:${context.packageName}")
+                            }
+                            context.startActivity(intent)
+                        },
+                        modifier = Modifier.padding(start = 8.dp)
+                    ) {
+                        Text("Speicher freigeben")
+                    }
+                }
+                if (!accessibilityEnabled) {
+                    Button(
+                        onClick = { context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) },
+                        modifier = Modifier.padding(start = 8.dp)
+                    ) {
+                        Text("Agent erlauben")
+                    }
                 }
             }
             Button(
