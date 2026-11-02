@@ -2,6 +2,7 @@ package dev.s10e.companion.ui
 
 import android.app.Activity
 import android.view.WindowManager
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -28,6 +29,7 @@ import dev.s10e.companion.core.ModeMachine
 import dev.s10e.companion.eyes.EyesCanvas
 import dev.s10e.companion.eyes.Mood
 import dev.s10e.companion.eyes.ShakeSensor
+import dev.s10e.companion.eyes.TiltSensor
 import dev.s10e.companion.kid.LockController
 
 import kotlinx.coroutines.delay
@@ -76,6 +78,8 @@ private class PendingAction(val description: String, val answer: CompletableDefe
 private enum class PinScreen { SET_FOR_KID_MODE, UNLOCK, DEVICE_OWNER }
 
 private const val SLEEP_AFTER_MS = 10 * 60 * 1000L
+private const val LOOK_HOLD_MS = 2_500L
+private const val HAPPY_AFTER_PICKUP_MS = 1_500L
 private const val LOOK_RANGE_X_DP = 84f
 private const val LOOK_RANGE_Y_DP = 44f
 private const val LISTEN_TIMEOUT_MS = 8_000L
@@ -94,6 +98,9 @@ fun AppRoot() {
     var shakes by remember { mutableIntStateOf(0) }
     var lookX by remember { mutableStateOf(0f) }
     var lookY by remember { mutableStateOf(0f) }
+    var tiltX by remember { mutableStateOf(0f) }
+    var tiltY by remember { mutableStateOf(0f) }
+    var pickups by remember { mutableIntStateOf(0) }
     var lastMotionMs by remember { mutableStateOf(System.currentTimeMillis()) }
 
     var pinScreen by remember { mutableStateOf<PinScreen?>(null) }
@@ -230,6 +237,9 @@ fun AppRoot() {
             val idleMs = System.currentTimeMillis() - lastMotionMs
             if (idleMs > SLEEP_AFTER_MS && mood == Mood.NEUTRAL) {
                 mood = Mood.SLEEPY
+            }
+            // Ohne neue Bewegung schaut das Gesicht wieder nach vorn, statt am letzten Punkt zu kleben.
+            if (idleMs > LOOK_HOLD_MS) {
                 lookX = 0f
                 lookY = 0f
             }
@@ -238,6 +248,29 @@ fun AppRoot() {
     }
 
     ShakeSensor { shakes++ }
+
+    TiltSensor(
+        onTilt = { x, y ->
+            tiltX = x
+            tiltY = y
+        },
+        onPickup = { pickups++ }
+    )
+
+    LaunchedEffect(pickups) {
+        if (pickups > 0) {
+            lastMotionMs = System.currentTimeMillis()
+            if (mood == Mood.SLEEPY) mood = Mood.NEUTRAL
+            if (mood == Mood.NEUTRAL && currentMode != AppMode.AGENT) {
+                mood = Mood.HAPPY
+                delay(HAPPY_AFTER_PICKUP_MS)
+                if (mood == Mood.HAPPY) mood = Mood.NEUTRAL
+            }
+        }
+    }
+
+    val shownLookX by animateFloatAsState(lookX + tiltX, label = "lookX")
+    val shownLookY by animateFloatAsState(lookY + tiltY, label = "lookY")
 
 
     LaunchedEffect(shakes) {
@@ -345,7 +378,7 @@ fun AppRoot() {
         contentAlignment = Alignment.Center
     ) {
         when (currentMode) {
-            AppMode.PASSIVE -> EyesCanvas(mood = mood, lookX = lookX, lookY = lookY)
+            AppMode.PASSIVE -> EyesCanvas(mood = mood, lookX = shownLookX, lookY = shownLookY)
             AppMode.AGENT -> ApolloTerminal(
                 onMoodChange = { mood = it },
                 onEnterKidMode = { enterKidMode() },
@@ -360,7 +393,7 @@ fun AppRoot() {
                 vaultVersion = vaultVersion,
                 onBoardChanged = { vaultVersion++ }
             )
-            AppMode.KID_LOCKED -> EyesCanvas(mood = mood, lookX = lookX, lookY = lookY)
+            AppMode.KID_LOCKED -> EyesCanvas(mood = mood, lookX = shownLookX, lookY = shownLookY)
         }
         // Versteckter Ausweg, er funktioniert auch ohne Mikrofon und Erkennung.
         // Im Terminal entfällt das Feld, es läge sonst über den Knöpfen.
