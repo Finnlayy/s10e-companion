@@ -93,6 +93,27 @@ class AgentTests {
     }
 
     @Test
+    fun agentLoop_denied_stopsWithoutAskingAgain() = runTest {
+        var asked = 0
+        val client = object : dev.s10e.companion.llm.LlmClient {
+            override fun chat(
+                messages: List<dev.s10e.companion.llm.ChatMessage>,
+                tools: List<dev.s10e.companion.llm.ToolSpec>
+            ): kotlinx.coroutines.flow.Flow<dev.s10e.companion.llm.LlmEvent> = kotlinx.coroutines.flow.flow {
+                emit(dev.s10e.companion.llm.LlmEvent.ToolCall("tap", "{}"))
+            }
+        }
+        val spec = dev.s10e.companion.llm.ToolSpec("tap", "")
+        val dispatcher = ToolDispatcher(
+            listOf(Tool("tap", Risk.ACT, spec) { "ok" }),
+            confirm = { asked++; false },
+            allowed = { true }
+        )
+        AgentLoop(client, dispatcher, tempLog()).run("Tippe auf Start", listOf(spec))
+        assertEquals(1, asked)
+    }
+
+    @Test
     fun agentLoop_plainQuestion_sendsNoTools() = runTest {
         var sentTools = -1
         val client = object : dev.s10e.companion.llm.LlmClient {

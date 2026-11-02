@@ -102,6 +102,7 @@ fun ApolloTerminal(
     reply: String,
     onReplyChange: (String) -> Unit,
     agent: AgentRuntime,
+    agentScope: CoroutineScope,
     vaultVersion: Int,
     onBoardChanged: () -> Unit
 ) {
@@ -286,7 +287,7 @@ fun ApolloTerminal(
                         val text = inputText.trim()
                         if (text.isNotEmpty()) {
                             onInteraction()
-                            handleTerminalInput(text, scope, agent, onMoodChange, onInteraction, { isServerHealthy }, onReplyChange, onBoardChanged)
+                            handleTerminalInput(text, agentScope, agent, onMoodChange, onInteraction, { isServerHealthy }, onReplyChange, onBoardChanged)
                             inputText = ""
                         }
                     }

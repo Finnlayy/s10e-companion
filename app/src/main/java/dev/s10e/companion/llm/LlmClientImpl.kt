@@ -1,5 +1,6 @@
 package dev.s10e.companion.llm
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -144,6 +145,8 @@ class LlmClientImpl(
                 val args = action.optJSONObject("arguments") ?: JSONObject()
                 emit(LlmEvent.ToolCall(action.getString("tool"), args.toString()))
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             emit(LlmEvent.Failed(e.message ?: "Unknown error"))
         } finally {
