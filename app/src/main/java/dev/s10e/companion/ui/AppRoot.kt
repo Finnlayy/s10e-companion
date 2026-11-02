@@ -67,6 +67,9 @@ import dev.s10e.companion.kid.PinStore
 import dev.s10e.companion.kid.SharedPrefsKeyValue
 import dev.s10e.companion.kid.PinResult
 import dev.s10e.companion.vault.VaultStore
+import dev.s10e.companion.presence.CameraPresence
+import dev.s10e.companion.presence.Motion
+
 
 private class PendingAction(val description: String, val answer: CompletableDeferred<Boolean>)
 
@@ -84,7 +87,12 @@ fun AppRoot() {
     val modeMachine = remember { ModeMachine(if (kidState.locked) AppMode.KID_LOCKED else AppMode.PASSIVE) }
     var currentMode by remember { mutableStateOf(modeMachine.mode) }
     var mood by remember { mutableStateOf(Mood.NEUTRAL) }
+
     var shakes by remember { mutableIntStateOf(0) }
+    var lookX by remember { mutableStateOf(0f) }
+    var lookY by remember { mutableStateOf(0f) }
+    var lastMotionMs by remember { mutableStateOf(System.currentTimeMillis()) }
+
     var pinScreen by remember { mutableStateOf<PinScreen?>(null) }
     var pinMessage by remember { mutableStateOf<String?>(null) }
     var terminalReply by remember { mutableStateOf("") }
@@ -197,7 +205,34 @@ fun AppRoot() {
         }
     }
 
+
+    if (visible) {
+        CameraPresence { motion ->
+            lastMotionMs = System.currentTimeMillis()
+            if (mood == Mood.SLEEPY) {
+                mood = Mood.NEUTRAL
+            }
+            if (mood == Mood.NEUTRAL) {
+                lookX = (motion.centerX - 0.5f) * 10f
+                lookY = (motion.centerY - 0.5f) * 10f
+            }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        while (true) {
+            val idleMs = System.currentTimeMillis() - lastMotionMs
+            if (idleMs > 10 * 60 * 1000L && mood == Mood.NEUTRAL) {
+                mood = Mood.SLEEPY
+                lookX = 0f
+                lookY = 0f
+            }
+            delay(1000)
+        }
+    }
+
     ShakeSensor { shakes++ }
+
 
     LaunchedEffect(shakes) {
         if (shakes > 0) {
@@ -301,7 +336,7 @@ fun AppRoot() {
         contentAlignment = Alignment.Center
     ) {
         when (currentMode) {
-            AppMode.PASSIVE -> EyesCanvas(mood)
+            AppMode.PASSIVE -> EyesCanvas(mood = mood, lookX = lookX, lookY = lookY)
             AppMode.AGENT -> ApolloTerminal(
                 onMoodChange = { mood = it },
                 onEnterKidMode = { enterKidMode() },
@@ -316,7 +351,7 @@ fun AppRoot() {
                 vaultVersion = vaultVersion,
                 onBoardChanged = { vaultVersion++ }
             )
-            AppMode.KID_LOCKED -> EyesCanvas(mood)
+            AppMode.KID_LOCKED -> EyesCanvas(mood = mood, lookX = lookX, lookY = lookY)
         }
         // Versteckter Ausweg, er funktioniert auch ohne Mikrofon und Erkennung.
         Box(

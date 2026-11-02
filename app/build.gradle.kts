@@ -107,6 +107,12 @@ tasks.named("preBuild").configure {
 }
 
 dependencies {
+
+    implementation("androidx.camera:camera-core:1.6.2")
+    implementation("androidx.camera:camera-camera2:1.6.2")
+    implementation("androidx.camera:camera-lifecycle:1.6.2")
+    implementation("androidx.camera:camera-view:1.6.2")
+
     implementation("com.alphacephei:vosk-android:0.3.75")
     implementation("org.apache.commons:commons-compress:1.28.0")
     implementation(files("libs/sherpa-onnx-1.13.8.aar"))
