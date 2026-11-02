@@ -33,7 +33,6 @@ import dev.s10e.companion.kid.LockController
 import kotlinx.coroutines.delay
 import android.Manifest
 import android.content.pm.PackageManager
-import android.content.Context
 import android.util.Log
 import androidx.compose.runtime.collectAsState
 import androidx.lifecycle.Lifecycle
@@ -42,9 +41,9 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.core.content.ContextCompat
-import dev.s10e.companion.llm.ChatMessage
-import dev.s10e.companion.llm.LlmClientImpl
-import dev.s10e.companion.llm.LlmEvent
+import androidx.compose.material3.AlertDialog
+import dev.s10e.companion.agent.AgentRuntime
+import kotlinx.coroutines.CompletableDeferred
 import dev.s10e.companion.speech.SpeechBootstrap
 import dev.s10e.companion.speech.SpeechStack
 import dev.s10e.companion.speech.UNLOCK_GRAMMAR
@@ -53,7 +52,6 @@ import dev.s10e.companion.speech.classify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.io.File
-import java.io.IOException
 import kotlinx.coroutines.withContext
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -70,36 +68,12 @@ import dev.s10e.companion.kid.SharedPrefsKeyValue
 import dev.s10e.companion.kid.PinResult
 import dev.s10e.companion.vault.VaultStore
 
+private class PendingAction(val description: String, val answer: CompletableDeferred<Boolean>)
+
 private enum class PinScreen { SET_FOR_KID_MODE, UNLOCK, DEVICE_OWNER }
 
-private const val VAULT_PATH = "/sdcard/Documents/ObsidianVault/"
 private const val LISTEN_TIMEOUT_MS = 8_000L
 private const val PIN_GESTURE_MS = 5_000L
-private const val SYSTEM_PROMPT = "Du bist Apollo, ein kleiner Schreibtisch-Begleiter. Antworte kurz und auf Deutsch."
-
-private suspend fun answer(context: Context, stack: SpeechStack, question: String, onReply: (String) -> Unit) {
-    val apiKey = File(context.filesDir, "api_key.txt")
-    val client = LlmClientImpl(apiKeyProvider = { apiKey.readText().trim() })
-    val reply = StringBuilder()
-    client.chat(listOf(ChatMessage("system", SYSTEM_PROMPT), ChatMessage("user", question))).collect { event ->
-        when (event) {
-            is LlmEvent.Token -> {
-                reply.append(event.text)
-                onReply(reply.toString())
-            }
-            is LlmEvent.Failed -> {
-                Log.w("S10eCompanion", "LLM-Fehler: ${event.message}")
-                onReply("[Fehler: ${event.message}]")
-            }
-            else -> {}
-        }
-    }
-    try {
-        stack.controller.say(reply.toString())
-    } catch (e: Exception) {
-        Log.w("S10eCompanion", "Sprachausgabe fehlgeschlagen: ${e.message}")
-    }
-}
 
 @Composable
 fun AppRoot() {
@@ -114,6 +88,20 @@ fun AppRoot() {
     var pinScreen by remember { mutableStateOf<PinScreen?>(null) }
     var pinMessage by remember { mutableStateOf<String?>(null) }
     var terminalReply by remember { mutableStateOf("") }
+    var vaultVersion by remember { mutableIntStateOf(0) }
+    var pendingAction by remember { mutableStateOf<PendingAction?>(null) }
+    val agent = remember {
+        AgentRuntime(
+            context = context,
+            vault = VaultStore(File(VAULT_PATH)),
+            allowed = { KidLockPolicy().toolsAllowed(modeMachine.mode) },
+            confirm = { action ->
+                val answer = CompletableDeferred<Boolean>()
+                pendingAction = PendingAction(action, answer)
+                answer.await()
+            }
+        )
+    }
 
     val lockController = remember { activity?.let { LockController(it) } }
     val pinStore = remember { PinStore(SharedPrefsKeyValue(context)) }
@@ -122,19 +110,6 @@ fun AppRoot() {
     fun openPin(screen: PinScreen) {
         pinMessage = null
         pinScreen = screen
-    }
-
-    suspend fun saveNote(text: String) {
-        val saved = withContext(Dispatchers.IO) {
-            try {
-                VaultStore(File(VAULT_PATH)).appendInbox(text, System.currentTimeMillis())
-                true
-            } catch (e: IOException) {
-                Log.w("S10eCompanion", "Notiz nicht gespeichert: ${e.message}")
-                false
-            }
-        }
-        terminalReply = if (saved) "Gespeichert: $text" else "[Notiz nicht gespeichert, Vault-Zugriff prüfen]"
     }
 
     fun enterKidMode() {
@@ -190,19 +165,20 @@ fun AppRoot() {
                     }
                     is VoiceIntent.Free -> if (mood == Mood.LISTENING) {
                         currentMode = modeMachine.onEvent(ModeEvent.Interaction(System.currentTimeMillis()))
-                        val text = intent.text
-                        if (text.startsWith("Notiz", ignoreCase = true) || text.startsWith("Aufgabe", ignoreCase = true)) {
-                            scope.launch { saveNote(text) }
-                            mood = Mood.NEUTRAL
-                        } else {
-                            mood = Mood.THINKING
-                            scope.launch(Dispatchers.IO) {
-                                answer(context, stack, text) { reply ->
-                                    terminalReply = reply
+                        mood = Mood.THINKING
+                        scope.launch(Dispatchers.IO) {
+                            try {
+                                val reply = agent.handle(intent.text) { partial ->
+                                    terminalReply = partial
                                     currentMode = modeMachine.onEvent(ModeEvent.Interaction(System.currentTimeMillis()))
                                 }
-                                mood = Mood.NEUTRAL
+                                stack.controller.say(reply)
+                            } catch (e: Exception) {
+                                Log.w("S10eCompanion", "Sprachauftrag fehlgeschlagen: ${e.message}")
+                                terminalReply = "[Fehler: ${e.message}]"
                             }
+                            vaultVersion++
+                            mood = Mood.NEUTRAL
                         }
                     }
                     VoiceIntent.Ignored -> {}
@@ -254,8 +230,25 @@ fun AppRoot() {
     LaunchedEffect(Unit) {
         while (true) {
             delay(1000)
-            currentMode = modeMachine.onEvent(ModeEvent.Tick(System.currentTimeMillis()))
+            // Solange der Agent arbeitet oder auf eine Bestätigung wartet, bleibt das Terminal offen.
+            val now = System.currentTimeMillis()
+            val busy = mood == Mood.THINKING || pendingAction != null
+            currentMode = modeMachine.onEvent(if (busy) ModeEvent.Interaction(now) else ModeEvent.Tick(now))
         }
+    }
+
+    pendingAction?.let { action ->
+        fun decide(allow: Boolean) {
+            action.answer.complete(allow)
+            pendingAction = null
+        }
+        AlertDialog(
+            onDismissRequest = { decide(false) },
+            title = { Text("Aktion bestätigen") },
+            text = { Text(action.description) },
+            confirmButton = { TextButton(onClick = { decide(true) }) { Text("Erlauben") } },
+            dismissButton = { TextButton(onClick = { decide(false) }) { Text("Ablehnen") } }
+        )
     }
 
     val screen = pinScreen
@@ -318,7 +311,10 @@ fun AppRoot() {
                 mood = mood,
                 reply = terminalReply,
                 onReplyChange = { terminalReply = it },
-                onNote = { saveNote(it) }
+                agent = agent,
+                agentScope = scope,
+                vaultVersion = vaultVersion,
+                onBoardChanged = { vaultVersion++ }
             )
             AppMode.KID_LOCKED -> EyesCanvas(mood)
         }

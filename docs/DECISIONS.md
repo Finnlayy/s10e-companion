@@ -69,3 +69,11 @@ For Phase 2, `Roborazzi` screenshot tests required `isIncludeAndroidResources = 
 * `llama-server` läuft mit `--no-repack`. Gemessen am Gerät mit -c 4096: mit Repack 3,4 bis 3,6 GB Spitze, 17 s Ladezeit, 14 bis 18 lmkd-Kills, 1 von 3 Kaltstarts beendete auch die App im Vordergrund, 7 bis 8,6 Token/s. Ohne Repack 2,5 GB, 4 s, keine Kills, 3,2 GB frei, 5,5 Token/s. Stabilität geht vor, denn die Kindersperre darf nicht wegfallen.
 * Notizen laufen für Tastatur und Sprache über `saveNote` in `AppRoot`. Ohne Speicherrecht meldet das Terminal den Fehler, die App stürzt nicht ab.
 * Antworten auf Spracheingaben erscheinen im selben Antwortfeld wie getippte.
+
+## Phase 8 Decisions
+* Tippen und Sprache laufen über `AgentRuntime`, die Werkzeugliste existiert nur dort. `allowed` liest den aktuellen Modus aus `ModeMachine`, der Kindermodus sperrt damit alle Werkzeuge.
+* „Aufgabe“, „Notiz“, „Notiere“ und „Öffne“ werden ohne LLM geparst und behalten den Wortlaut ohne das Schlüsselwort.
+* Die Werkzeugwahl per JSON-Schema läuft nur bei erkennbaren Handyaufträgen. Normale Fragen bekommen direkt eine Antwort, sonst kämen 20 s Wartezeit bei 10 Token/s Prompt-Tempo dazu. Das Werkzeug `none` beendet die Wahl.
+* Der Not-Aus beendet Stream und Schleife direkt. Ein neuer Auftrag der Person hebt ihn wieder auf.
+* `read_screen` lässt Passwortfelder aus.
+* Auch `open_app` braucht als `ACT` eine Bestätigung pro Aufruf.
