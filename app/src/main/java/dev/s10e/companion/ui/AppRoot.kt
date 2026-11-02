@@ -66,6 +66,7 @@ import dev.s10e.companion.kid.UnlockStep
 import dev.s10e.companion.kid.PinStore
 import dev.s10e.companion.kid.SharedPrefsKeyValue
 import dev.s10e.companion.kid.PinResult
+import dev.s10e.companion.vault.VaultStore
 
 private enum class PinScreen { SET_FOR_KID_MODE, UNLOCK, DEVICE_OWNER }
 
@@ -150,6 +151,8 @@ fun AppRoot() {
         if (!micGranted || !visible) return@LaunchedEffect
         stack.controller.setGrammar(if (currentMode == AppMode.AGENT) null else UNLOCK_GRAMMAR)
 
+        val vaultStore = VaultStore(File("/sdcard/Documents/ObsidianVault/"))
+
         try {
             stack.recognizer.results.collect { transcript ->
                 when (val intent = classify(transcript, currentMode == AppMode.KID_LOCKED)) {
@@ -165,10 +168,19 @@ fun AppRoot() {
                         }
                     }
                     is VoiceIntent.Free -> if (mood == Mood.LISTENING) {
-                        mood = Mood.THINKING
-                        scope.launch(Dispatchers.IO) {
-                            answer(context, stack, intent.text)
+                        currentMode = modeMachine.onEvent(ModeEvent.Interaction(System.currentTimeMillis()))
+                        val text = intent.text
+                        if (text.startsWith("Notiz", ignoreCase = true) || text.startsWith("Aufgabe", ignoreCase = true)) {
+                            scope.launch(Dispatchers.IO) {
+                                vaultStore.appendInbox(text, System.currentTimeMillis())
+                            }
                             mood = Mood.NEUTRAL
+                        } else {
+                            mood = Mood.THINKING
+                            scope.launch(Dispatchers.IO) {
+                                answer(context, stack, text)
+                                mood = Mood.NEUTRAL
+                            }
                         }
                     }
                     VoiceIntent.Ignored -> {}
@@ -272,7 +284,13 @@ fun AppRoot() {
     ) {
         when (currentMode) {
             AppMode.PASSIVE -> EyesCanvas(mood)
-            AppMode.AGENT -> Text(text = "[Terminal Placeholder]", color = Color.White)
+            AppMode.AGENT -> ApolloTerminal(
+                onMoodChange = { mood = it },
+                onEnterKidMode = { enterKidMode() },
+                onInteraction = {
+                    currentMode = modeMachine.onEvent(ModeEvent.Interaction(System.currentTimeMillis()))
+                }
+            )
             AppMode.KID_LOCKED -> EyesCanvas(mood)
         }
         // Versteckter Ausweg, er funktioniert auch ohne Mikrofon und Erkennung.

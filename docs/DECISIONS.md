@@ -58,3 +58,9 @@ For Phase 2, `Roborazzi` screenshot tests required `isIncludeAndroidResources = 
 * `KidState` speichert die Sperre. Ohne das hebt jeder Neustart oder Absturz sie auf.
 * `CrashGuard` zählt Prozessstarts, nicht Neuaufbauten der Activity. Der sichere Bildschirm startet weder Sprache noch LLM und hält eine aktive Sperre.
 * Die Geste löst nach 5 s Halten aus, nicht erst beim Loslassen. Nach richtiger PIN bietet die App als Device Owner „Gerätebesitz aufheben“ an.
+
+## Phase 7 Decisions
+* Moved ApolloTerminal input handling and vault loading to Dispatchers.IO to prevent main thread blocking (ANR risk) while still properly mutating Compose state.
+* The LLM / Vault routing was wired not just for text input, but also for recognized free speech within AppRoot to ensure a unified path for commands.
+* Implemented proper KanbanBoardView interaction dispatching by capturing both vertical and horizontal scroll state events, counting them as ModeEvent.Interactions so the agent terminal stays open during active use.
+* Healthcheck URL connections were safely dispatched to background coroutines and explicitly wait up to 10 seconds before throwing a timeout.
