@@ -59,5 +59,13 @@ For Phase 2, `Roborazzi` screenshot tests required `isIncludeAndroidResources = 
 * `CrashGuard` zählt Prozessstarts, nicht Neuaufbauten der Activity. Der sichere Bildschirm startet weder Sprache noch LLM und hält eine aktive Sperre.
 * Die Geste löst nach 5 s Halten aus, nicht erst beim Loslassen. Nach richtiger PIN bietet die App als Device Owner „Gerätebesitz aufheben“ an.
 
+## Phase 7 Decisions
+* Moved ApolloTerminal input handling and vault loading to Dispatchers.IO to prevent main thread blocking (ANR risk) while still properly mutating Compose state.
+* The LLM / Vault routing was wired not just for text input, but also for recognized free speech within AppRoot to ensure a unified path for commands.
+* Implemented proper KanbanBoardView interaction dispatching by capturing both vertical and horizontal scroll state events, counting them as ModeEvent.Interactions so the agent terminal stays open during active use.
+* Healthcheck URL connections were safely dispatched to background coroutines and explicitly wait up to 10 seconds before throwing a timeout.
+||||||| 1771518
 ## Speicher auf dem S10e
 * `llama-server` läuft mit `--no-repack`. Gemessen am Gerät mit -c 4096: mit Repack 3,4 bis 3,6 GB Spitze, 17 s Ladezeit, 14 bis 18 lmkd-Kills, 1 von 3 Kaltstarts beendete auch die App im Vordergrund, 7 bis 8,6 Token/s. Ohne Repack 2,5 GB, 4 s, keine Kills, 3,2 GB frei, 5,5 Token/s. Stabilität geht vor, denn die Kindersperre darf nicht wegfallen.
+* Notizen laufen für Tastatur und Sprache über `saveNote` in `AppRoot`. Ohne Speicherrecht meldet das Terminal den Fehler, die App stürzt nicht ab.
+* Antworten auf Spracheingaben erscheinen im selben Antwortfeld wie getippte.

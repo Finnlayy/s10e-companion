@@ -53,6 +53,8 @@ import dev.s10e.companion.speech.classify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.io.File
+import java.io.IOException
+import kotlinx.coroutines.withContext
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
@@ -66,21 +68,29 @@ import dev.s10e.companion.kid.UnlockStep
 import dev.s10e.companion.kid.PinStore
 import dev.s10e.companion.kid.SharedPrefsKeyValue
 import dev.s10e.companion.kid.PinResult
+import dev.s10e.companion.vault.VaultStore
 
 private enum class PinScreen { SET_FOR_KID_MODE, UNLOCK, DEVICE_OWNER }
 
+private const val VAULT_PATH = "/sdcard/Documents/ObsidianVault/"
 private const val LISTEN_TIMEOUT_MS = 8_000L
 private const val PIN_GESTURE_MS = 5_000L
 private const val SYSTEM_PROMPT = "Du bist Apollo, ein kleiner Schreibtisch-Begleiter. Antworte kurz und auf Deutsch."
 
-private suspend fun answer(context: Context, stack: SpeechStack, question: String) {
+private suspend fun answer(context: Context, stack: SpeechStack, question: String, onReply: (String) -> Unit) {
     val apiKey = File(context.filesDir, "api_key.txt")
     val client = LlmClientImpl(apiKeyProvider = { apiKey.readText().trim() })
     val reply = StringBuilder()
     client.chat(listOf(ChatMessage("system", SYSTEM_PROMPT), ChatMessage("user", question))).collect { event ->
         when (event) {
-            is LlmEvent.Token -> reply.append(event.text)
-            is LlmEvent.Failed -> Log.w("S10eCompanion", "LLM-Fehler: ${event.message}")
+            is LlmEvent.Token -> {
+                reply.append(event.text)
+                onReply(reply.toString())
+            }
+            is LlmEvent.Failed -> {
+                Log.w("S10eCompanion", "LLM-Fehler: ${event.message}")
+                onReply("[Fehler: ${event.message}]")
+            }
             else -> {}
         }
     }
@@ -103,6 +113,7 @@ fun AppRoot() {
     var shakes by remember { mutableIntStateOf(0) }
     var pinScreen by remember { mutableStateOf<PinScreen?>(null) }
     var pinMessage by remember { mutableStateOf<String?>(null) }
+    var terminalReply by remember { mutableStateOf("") }
 
     val lockController = remember { activity?.let { LockController(it) } }
     val pinStore = remember { PinStore(SharedPrefsKeyValue(context)) }
@@ -111,6 +122,19 @@ fun AppRoot() {
     fun openPin(screen: PinScreen) {
         pinMessage = null
         pinScreen = screen
+    }
+
+    suspend fun saveNote(text: String) {
+        val saved = withContext(Dispatchers.IO) {
+            try {
+                VaultStore(File(VAULT_PATH)).appendInbox(text, System.currentTimeMillis())
+                true
+            } catch (e: IOException) {
+                Log.w("S10eCompanion", "Notiz nicht gespeichert: ${e.message}")
+                false
+            }
+        }
+        terminalReply = if (saved) "Gespeichert: $text" else "[Notiz nicht gespeichert, Vault-Zugriff prüfen]"
     }
 
     fun enterKidMode() {
@@ -165,10 +189,20 @@ fun AppRoot() {
                         }
                     }
                     is VoiceIntent.Free -> if (mood == Mood.LISTENING) {
-                        mood = Mood.THINKING
-                        scope.launch(Dispatchers.IO) {
-                            answer(context, stack, intent.text)
+                        currentMode = modeMachine.onEvent(ModeEvent.Interaction(System.currentTimeMillis()))
+                        val text = intent.text
+                        if (text.startsWith("Notiz", ignoreCase = true) || text.startsWith("Aufgabe", ignoreCase = true)) {
+                            scope.launch { saveNote(text) }
                             mood = Mood.NEUTRAL
+                        } else {
+                            mood = Mood.THINKING
+                            scope.launch(Dispatchers.IO) {
+                                answer(context, stack, text) { reply ->
+                                    terminalReply = reply
+                                    currentMode = modeMachine.onEvent(ModeEvent.Interaction(System.currentTimeMillis()))
+                                }
+                                mood = Mood.NEUTRAL
+                            }
                         }
                     }
                     VoiceIntent.Ignored -> {}
@@ -267,7 +301,7 @@ fun AppRoot() {
             .fillMaxSize()
             .background(Color.Black)
             .clickable {
-                if (currentMode != AppMode.KID_LOCKED) mood = Mood.LISTENING
+                if (currentMode == AppMode.PASSIVE) mood = Mood.LISTENING
                 val event = if (currentMode == AppMode.PASSIVE) ModeEvent.EnterAgent else ModeEvent.Interaction(System.currentTimeMillis())
                 currentMode = modeMachine.onEvent(event)
             },
@@ -275,7 +309,17 @@ fun AppRoot() {
     ) {
         when (currentMode) {
             AppMode.PASSIVE -> EyesCanvas(mood)
-            AppMode.AGENT -> Text(text = "[Terminal Placeholder]", color = Color.White)
+            AppMode.AGENT -> ApolloTerminal(
+                onMoodChange = { mood = it },
+                onEnterKidMode = { enterKidMode() },
+                onInteraction = {
+                    currentMode = modeMachine.onEvent(ModeEvent.Interaction(System.currentTimeMillis()))
+                },
+                mood = mood,
+                reply = terminalReply,
+                onReplyChange = { terminalReply = it },
+                onNote = { saveNote(it) }
+            )
             AppMode.KID_LOCKED -> EyesCanvas(mood)
         }
         // Versteckter Ausweg, er funktioniert auch ohne Mikrofon und Erkennung.
