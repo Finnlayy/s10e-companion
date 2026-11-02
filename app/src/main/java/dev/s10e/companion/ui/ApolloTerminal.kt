@@ -35,6 +35,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import dev.s10e.companion.eyes.Mood
 import dev.s10e.companion.agent.AgentRuntime
+import androidx.compose.foundation.layout.fillMaxHeight
 import dev.s10e.companion.agent.PhoneControlService
 import dev.s10e.companion.agent.ToolDispatcher
 import dev.s10e.companion.agent.parseCommand
@@ -174,6 +175,29 @@ fun ApolloTerminal(
         ) {
             Button(onClick = { onEnterKidMode() }) {
                 Text("Kindermodus")
+            }
+            if (dev.s10e.companion.kid.KidLockPolicy().toolsAllowed(dev.s10e.companion.core.AppMode.AGENT)) {
+                var showPlugins by remember { mutableStateOf(false) }
+                Button(
+                    onClick = { showPlugins = true },
+                    modifier = Modifier.padding(start = 8.dp)
+                ) {
+                    Text("Plugins")
+                }
+                if (showPlugins) {
+                    androidx.compose.material3.AlertDialog(
+                        onDismissRequest = { showPlugins = false },
+                        title = { Text("Plugins") },
+                        text = {
+                            Box(modifier = Modifier.fillMaxWidth().fillMaxHeight(0.8f)) {
+                                PluginPanel(File(context.filesDir, "plugins/index.html"))
+                            }
+                        },
+                        confirmButton = {
+                            Button(onClick = { showPlugins = false }) { Text("Schließen") }
+                        }
+                    )
+                }
             }
             if (!hasStoragePermission) {
                 Button(
