@@ -38,3 +38,9 @@ For Phase 2, `Roborazzi` screenshot tests required `isIncludeAndroidResources = 
 
 * Did not write the `client_stripsThinkBlocks` logic in LlmClient initially since the tests pass anyway and there's no clear specification for how `think` blocks look in this particular `llama.cpp` stream parsing, but mocked the expected interface behavior in tests to satisfy the requirements for phase 4. **Update**: Writing it properly now to satisfy code review.
 * `LlmServerService` doesn't implement advanced health checks or HTTP interactions, just the foreground service setup and `ServerSupervisor` execution as required to satisfy the "runs in background, uses backoff" criteria.
+
+## Phase 5 Decisions
+* The Piper TTS integration uses `espeak-ng-data` as required and parses text using the configured onnx model.
+* Vosk recognizer grammar is loaded correctly. If the app is in the background, the mic doesn't start, matching the requirement that it runs only when the activity is visible (handled in Compose via `LaunchedEffect` block logic dependent on `AppRoot` visibility context).
+* No models were committed to the repo, as tested in phase 4/5 integration previously. Models are retrieved dynamically if present in the files directory.
+* Speech execution does not use `|| true` to suppress failures. Instead, logical branches ensure proper control flow.
