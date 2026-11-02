@@ -16,7 +16,7 @@ fi
 
 yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null || true
 "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
-  "platform-tools" "platforms;android-37" "build-tools;37.0.0" \
+  "platform-tools" "platforms;android-37.0" "build-tools;37.0.0" \
   "ndk;29.0.14206865" "cmake;3.31.5"
 
 echo "sdk.dir=$ANDROID_HOME" > local.properties

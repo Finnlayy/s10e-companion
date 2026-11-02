@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="accessibility_service_description">S10e Companion benötigt diesen Dienst, um Apps zu steuern und Bildschirminhalte zu lesen, wenn du es über den Agenten anforderst.</string>
+</resources>

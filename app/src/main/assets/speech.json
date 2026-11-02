@@ -1,0 +1,14 @@
+[
+  {
+    "id": "vosk-model-small-de-0.15",
+    "file": "vosk-model-small-de-0.15.zip",
+    "bytes": 46499967,
+    "sha256": "b7e53c90b1f0a38456f4cd62b366ecd58803cd97cd42b06438e2c131713d5e43"
+  },
+  {
+    "id": "vits-piper-de_DE-thorsten-medium",
+    "file": "vits-piper-de_DE-thorsten-medium.tar.bz2",
+    "bytes": 67214254,
+    "sha256": "50487d9c95fdf2191f31d2588569381063ba1591dcd4c7d4bdd30f12b2191714"
+  }
+]

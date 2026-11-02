@@ -46,12 +46,12 @@ Diese Punkte sind aus der Recherche begründet und gelten verbindlich. Details s
 
 **Files:** Create: `gradlew`, `gradle/wrapper/*`, `settings.gradle.kts`, `build.gradle.kts`, `gradle.properties`, `gradle/libs.versions.toml`, `app/build.gradle.kts`, `app/src/main/AndroidManifest.xml`, `app/src/main/java/dev/s10e/companion/MainActivity.kt`, `app/src/test/java/dev/s10e/companion/SmokeTest.kt`, `docs/DECISIONS.md`
 
-- [ ] **Step 1:** `bash scripts/jules-setup.sh` ausführen. Falls ein SDK-Paketname nicht existiert, das Skript korrigieren und den Grund in `docs/DECISIONS.md` notieren.
-- [ ] **Step 2:** `gradle wrapper --gradle-version 9.6` ausführen und das Projekt mit den Versionen aus dem Tech Stack anlegen. `MainActivity` zeigt schwarzen Hintergrund und den Text „S10e Companion“.
-- [ ] **Step 3:** Test `SmokeTest.appName_isSet` schreiben: `assertEquals("S10e Companion", APP_NAME)`.
-- [ ] **Step 4:** `./gradlew --no-daemon testDebugUnitTest assembleDebug` ausführen. Erwartet: `BUILD SUCCESSFUL` und `app/build/outputs/apk/debug/app-debug.apk`.
-- [ ] **Step 5:** Ausgaben von `free -h`, `nproc`, `df -h`, `ls -l /dev/kvm` und die Build-Dauer in `docs/DECISIONS.md` und die PR-Beschreibung schreiben.
-- [ ] **Step 6:** Commit `chore: Gradle-Grundgerüst und Toolchain-Prüfung`.
+- [x] **Step 1:** `bash scripts/jules-setup.sh` ausführen. Falls ein SDK-Paketname nicht existiert, das Skript korrigieren und den Grund in `docs/DECISIONS.md` notieren.
+- [x] **Step 2:** `gradle wrapper --gradle-version 9.6` ausführen und das Projekt mit den Versionen aus dem Tech Stack anlegen. `MainActivity` zeigt schwarzen Hintergrund und den Text „S10e Companion“.
+- [x] **Step 3:** Test `SmokeTest.appName_isSet` schreiben: `assertEquals("S10e Companion", APP_NAME)`.
+- [x] **Step 4:** `./gradlew --no-daemon testDebugUnitTest assembleDebug` ausführen. Erwartet: `BUILD SUCCESSFUL` und `app/build/outputs/apk/debug/app-debug.apk`.
+- [x] **Step 5:** Ausgaben von `free -h`, `nproc`, `df -h`, `ls -l /dev/kvm` und die Build-Dauer in `docs/DECISIONS.md` und die PR-Beschreibung schreiben.
+- [x] **Step 6:** Commit `chore: Gradle-Grundgerüst und Toolchain-Prüfung`.
 
 ## Phase 1: Modus-Logik und App-Shell
 

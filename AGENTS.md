@@ -11,6 +11,7 @@ Native Android-App für das Samsung Galaxy S10e. Offline, Kotlin, Jetpack Compos
 - Arbeite testgetrieben: erst der fehlschlagende Test, dann der Code.
 - Reine Logik bleibt frei von Android-Importen, damit sie als JVM-Test läuft.
 - Ändere keine Versionen aus dem Plan ohne Eintrag in `docs/DECISIONS.md`.
+- Versionen im Plan sind am 2026-11-01 geprüft. Du darfst sie nicht wegen deines Trainingswissens als nicht existent einstufen oder herabsetzen. Prüfe im Zweifel die Registry mit curl.
 
 ## Befehle
 
@@ -23,6 +24,7 @@ bash scripts/build-llama.sh
 ## Verbote
 
 - Keine Modelle, APKs, Keystores, `local.properties` oder Dateien über 50 MiB committen.
+- Downloads nie ins Repo legen, sondern nach `/tmp`. Zu große Änderungssätze lassen die Session scheitern.
 - `.github/workflows/` nur ändern, wenn die Phase es verlangt.
 - Keine Netzwerkaufrufe außer an `127.0.0.1`.
 - Keine rohe Shell für den Agenten, kein `DISALLOW_DEBUGGING_FEATURES`.
