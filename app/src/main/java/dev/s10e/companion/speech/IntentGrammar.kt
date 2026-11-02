@@ -7,6 +7,9 @@ sealed interface VoiceIntent {
     object Ignored : VoiceIntent
 }
 
+/** „agentenmodus“ fehlt im Wortschatz des Vosk-Modells, nur die getrennte Form ist erkennbar. */
+val UNLOCK_GRAMMAR = listOf("agenten modus aktivieren", "[unk]")
+
 fun classify(transcript: String, kidMode: Boolean): VoiceIntent {
     val t = transcript.trim().lowercase()
     if (t.isEmpty() || t == "[unk]") return VoiceIntent.Ignored
@@ -19,10 +22,6 @@ fun classify(transcript: String, kidMode: Boolean): VoiceIntent {
     if (kidMode) {
         return VoiceIntent.Ignored
     }
-
-    // Enter kid mode isn't explicitly defined in phase 5 grammar rules,
-    // but the sealed class asks for it. I'll leave it out of classification
-    // for now and handle Free text.
 
     return VoiceIntent.Free(t)
 }

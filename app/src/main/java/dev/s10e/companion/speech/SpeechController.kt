@@ -17,10 +17,17 @@ class SpeechController(
     private val tts: Speaker
 ) {
     private var lastGrammar: List<String>? = null
+    private var listening = false
 
     fun setGrammar(grammar: List<String>?) {
         lastGrammar = grammar
+        listening = true
         rec.start(grammar)
+    }
+
+    fun stopListening() {
+        listening = false
+        rec.stop()
     }
 
     suspend fun say(text: String) {
@@ -28,7 +35,7 @@ class SpeechController(
         try {
             tts.speak(text)
         } finally {
-            rec.start(lastGrammar)
+            if (listening) rec.start(lastGrammar)
         }
     }
 }

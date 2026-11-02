@@ -34,6 +34,15 @@ jobs:
       - name: llama.cpp bauen
         if: steps.project.outputs.exists == 'true' && hashFiles('scripts/build-llama.sh') != ''
         run: bash scripts/build-llama.sh
+      - name: Festen Debug-Schlüssel einrichten
+        if: steps.project.outputs.exists == 'true'
+        env:
+          DEBUG_KEYSTORE_B64: ${{ secrets.DEBUG_KEYSTORE_B64 }}
+        run: |
+          if [ -n "$DEBUG_KEYSTORE_B64" ]; then
+            mkdir -p ~/.android
+            echo "$DEBUG_KEYSTORE_B64" | base64 -d > ~/.android/debug.keystore
+          fi
       - name: Testen und bauen
         if: steps.project.outputs.exists == 'true'
         run: ./gradlew --no-daemon testDebugUnitTest assembleDebug

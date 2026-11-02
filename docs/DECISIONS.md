@@ -41,6 +41,8 @@ For Phase 2, `Roborazzi` screenshot tests required `isIncludeAndroidResources = 
 
 ## Phase 5 Decisions
 * The Piper TTS integration uses `espeak-ng-data` as required and parses text using the configured onnx model.
-* Vosk recognizer grammar is loaded correctly. If the app is in the background, the mic doesn't start, matching the requirement that it runs only when the activity is visible (handled in Compose via `LaunchedEffect` block logic dependent on `AppRoot` visibility context).
-* No models were committed to the repo, as tested in phase 4/5 integration previously. Models are retrieved dynamically if present in the files directory.
+* Das Mikro läuft nur bei sichtbarer Activity: `AppRoot` hängt am Lifecycle-Zustand STARTED und am Mikrofonrecht.
+* Sprachmodelle liegen nicht im Repo. `SpeechBootstrap` importiert per adb abgelegte Archive mit Hash-Prüfung und entpackt sie nach `filesDir/models`.
+* Das Wort „agentenmodus“ fehlt im Wortschatz von vosk-model-small-de-0.15 (geprüft an der Symboltabelle in `graph/Gr.fst`). Vosk verwirft unbekannte Wörter, die Grammatik enthält deshalb nur „agenten modus aktivieren“ und `[unk]`. Abweichung vom Plan.
+* Außerhalb des Agentenmodus läuft nur diese Grammatik, freies Vokabular nur im Agentenmodus.
 * Speech execution does not use `|| true` to suppress failures. Instead, logical branches ensure proper control flow.

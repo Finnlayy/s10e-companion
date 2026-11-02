@@ -35,12 +35,13 @@ class SpeechControllerTest {
         val rec = FakeRecognizer()
         val tts = FakeSpeaker()
         val controller = SpeechController(rec, tts)
+        controller.setGrammar(null)
 
         controller.say("test")
 
         assertEquals(1, rec.stopCount)
         assertEquals(1, tts.speakCount)
-        assertEquals(1, rec.startCount)
+        assertEquals(2, rec.startCount)
     }
 
     @Test
@@ -48,6 +49,7 @@ class SpeechControllerTest {
         val rec = FakeRecognizer()
         val tts = FakeSpeaker(throwOnSpeak = true)
         val controller = SpeechController(rec, tts)
+        controller.setGrammar(null)
 
         try {
             controller.say("test")
@@ -57,6 +59,18 @@ class SpeechControllerTest {
 
         assertEquals(1, rec.stopCount)
         assertEquals(0, tts.speakCount)
-        assertEquals(1, rec.startCount) // Even if it throws, it should resume
+        assertEquals(2, rec.startCount) // Even if it throws, it should resume
+    }
+
+    @Test
+    fun say_staysSilentAfterStopListening() = runTest {
+        val rec = FakeRecognizer()
+        val controller = SpeechController(rec, FakeSpeaker())
+        controller.setGrammar(null)
+        controller.stopListening()
+
+        controller.say("test")
+
+        assertEquals(1, rec.startCount)
     }
 }
