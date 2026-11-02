@@ -7,15 +7,36 @@ import androidx.activity.compose.setContent
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import dev.s10e.companion.kid.CrashGuard
+import dev.s10e.companion.kid.KidState
+import dev.s10e.companion.kid.LockController
+import dev.s10e.companion.kid.SharedPrefsKeyValue
+import dev.s10e.companion.eyes.EyesCanvas
+import dev.s10e.companion.eyes.Mood
 import dev.s10e.companion.llm.LlmBootstrap
 import dev.s10e.companion.ui.AppRoot
 import kotlinx.coroutines.launch
 
-val APP_NAME = "S10e Companion"
+const val APP_NAME = "S10e Companion"
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        val prefs = SharedPrefsKeyValue(this)
+        val crashGuard = CrashGuard(prefs)
+        // Ein Neuaufbau der Activity, etwa beim Drehen, ist kein Neustart.
+        if (savedInstanceState == null) crashGuard.recordStart(System.currentTimeMillis())
+
+        if (crashGuard.inSafeMode(System.currentTimeMillis())) {
+            // Sicherer Bildschirm ohne Sprache und LLM, eine aktive Sperre bleibt bestehen.
+            if (KidState(prefs).locked) LockController(this).enterLockMode()
+            setContent {
+                EyesCanvas(mood = Mood.NEUTRAL)
+            }
+            return
+        }
+
         setContent {
             AppRoot()
         }

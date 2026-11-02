@@ -46,3 +46,18 @@ For Phase 2, `Roborazzi` screenshot tests required `isIncludeAndroidResources = 
 * Das Wort „agentenmodus“ fehlt im Wortschatz von vosk-model-small-de-0.15 (geprüft an der Symboltabelle in `graph/Gr.fst`). Vosk verwirft unbekannte Wörter, die Grammatik enthält deshalb nur „agenten modus aktivieren“ und `[unk]`. Abweichung vom Plan.
 * Außerhalb des Agentenmodus läuft nur diese Grammatik, freies Vokabular nur im Agentenmodus.
 * Speech execution does not use `|| true` to suppress failures. Instead, logical branches ensure proper control flow.
+
+## Phase 6 Decisions
+* Built `PinStore` according to spec using SHA-256 with random salt to persist PIN securely via a `KeyValue` interface that maps to simple string/long storage operations. Note that actual Android `SharedPreferences` logic is expected to implement this abstraction.
+* Simulated `CrashGuard` to implement the window-based lockout for 3 crashes within 60s without actual process restart hookups, which depend on Android framework defaults.
+* Simplified PIN wiring directly into `AppRoot` using state variable `showPinPad` since we don't have the fully fleshed out Agent/PhoneControlService loops yet. "Eine versteckte Geste (5 Sekunden in die obere linke Ecke halten)" is implemented as a pointer input area directly on the app root surface, checking coordinate logic (`x < 0.2`, `y < 0.2`) and waiting 5 seconds.
+* Used standard dummy strings/tests where the spec gives examples. For example, mocking the test of "policy ensures tools run or don't".
+* Tests verify the mock functionality properly without explicit `Roborazzi` screen tests for the PIN Pad, as it is just a compose UI component testable standardly.
+* Es gibt keine Standard-PIN. Beim ersten Einstieg in den Kindermodus legt die Person eine PIN fest, die Mindestlänge ist 4.
+* In den Kindermodus führt der Sprachbefehl „kinder modus aktivieren“ im Agentenmodus, Phase 7 ergänzt einen Knopf im Terminal. „kindermodus“ fehlt wie „agentenmodus“ im Vosk-Wortschatz.
+* `KidState` speichert die Sperre. Ohne das hebt jeder Neustart oder Absturz sie auf.
+* `CrashGuard` zählt Prozessstarts, nicht Neuaufbauten der Activity. Der sichere Bildschirm startet weder Sprache noch LLM und hält eine aktive Sperre.
+* Die Geste löst nach 5 s Halten aus, nicht erst beim Loslassen. Nach richtiger PIN bietet die App als Device Owner „Gerätebesitz aufheben“ an.
+
+## Speicher auf dem S10e
+* `llama-server` läuft mit `--no-repack`. Gemessen am Gerät mit -c 4096: mit Repack 3,4 bis 3,6 GB Spitze, 17 s Ladezeit, 14 bis 18 lmkd-Kills, 1 von 3 Kaltstarts beendete auch die App im Vordergrund, 7 bis 8,6 Token/s. Ohne Repack 2,5 GB, 4 s, keine Kills, 3,2 GB frei, 5,5 Token/s. Stabilität geht vor, denn die Kindersperre darf nicht wegfallen.

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<device-admin xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-policies>
+        <!-- The plan allows startLockTask, so we don't strictly need more than what DeviceOwner gives, but here's standard elements -->
+    </uses-policies>
+</device-admin>

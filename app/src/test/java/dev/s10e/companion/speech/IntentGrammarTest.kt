@@ -18,6 +18,12 @@ class IntentGrammarTest {
     }
 
     @Test
+    fun classify_kidModeCommand_onlyOutsideKidMode() {
+        assertEquals(VoiceIntent.EnterKidMode, classify("kinder modus aktivieren", false))
+        assertEquals(VoiceIntent.Ignored, classify("kinder modus aktivieren", true))
+    }
+
+    @Test
     fun classify_unk_isIgnored() {
         assertEquals(VoiceIntent.Ignored, classify("[unk]", false))
         assertEquals(VoiceIntent.Ignored, classify("[unk]", true))

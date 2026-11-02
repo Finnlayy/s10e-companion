@@ -23,5 +23,9 @@ fun classify(transcript: String, kidMode: Boolean): VoiceIntent {
         return VoiceIntent.Ignored
     }
 
+    if (t == "kinder modus aktivieren") {
+        return VoiceIntent.EnterKidMode
+    }
+
     return VoiceIntent.Free(t)
 }
