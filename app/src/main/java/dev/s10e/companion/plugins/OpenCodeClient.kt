@@ -8,7 +8,7 @@ import java.util.Base64
 class OpenCodeClient(private val prefs: KeyValue) {
     fun fetchServerStatus(): String {
         val host = prefs.getString("opencode_host", "127.0.0.1") ?: "127.0.0.1"
-        val port = prefs.getString("opencode_port", "8000") ?: "8000"
+        val port = prefs.getString("opencode_port", "4096") ?: "4096"
         val password = prefs.getString("opencode_password", "") ?: ""
 
         if (host != "127.0.0.1") return "nicht verbunden" // only talk to loopback
@@ -24,6 +24,8 @@ class OpenCodeClient(private val prefs: KeyValue) {
                 val auth = Base64.getEncoder().encodeToString(":$password".toByteArray())
                 connection.setRequestProperty("Authorization", "Basic $auth")
             }
+
+            if (password.isEmpty()) return "nicht verbunden"
 
             return if (connection.responseCode in 200..299) {
                 "verbunden"

@@ -75,6 +75,9 @@ private class PendingAction(val description: String, val answer: CompletableDefe
 
 private enum class PinScreen { SET_FOR_KID_MODE, UNLOCK, DEVICE_OWNER }
 
+private const val SLEEP_AFTER_MS = 10 * 60 * 1000L
+private const val LOOK_RANGE_X_DP = 84f
+private const val LOOK_RANGE_Y_DP = 44f
 private const val LISTEN_TIMEOUT_MS = 8_000L
 private const val PIN_GESTURE_MS = 5_000L
 
@@ -129,6 +132,7 @@ fun AppRoot() {
     var micGranted by remember {
         mutableStateOf(ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED)
     }
+    var micAsked by remember { mutableStateOf(micGranted) }
     val lifecycleState by (context as LifecycleOwner).lifecycle.currentStateFlow.collectAsState()
     val visible = lifecycleState.isAtLeast(Lifecycle.State.STARTED)
 
@@ -136,6 +140,7 @@ fun AppRoot() {
         ActivityResultContracts.RequestPermission()
     ) { isGranted: Boolean ->
         micGranted = isGranted
+        micAsked = true
     }
 
     LaunchedEffect(Unit) {
@@ -206,15 +211,16 @@ fun AppRoot() {
     }
 
 
-    if (visible) {
+    // Android zeigt nur eine Rechteabfrage zur Zeit, die Kamera wartet deshalb auf die Mikrofon-Antwort.
+    if (visible && micAsked) {
         CameraPresence { motion ->
             lastMotionMs = System.currentTimeMillis()
             if (mood == Mood.SLEEPY) {
                 mood = Mood.NEUTRAL
             }
             if (mood == Mood.NEUTRAL) {
-                lookX = (motion.centerX - 0.5f) * 10f
-                lookY = (motion.centerY - 0.5f) * 10f
+                lookX = (motion.centerX - 0.5f) * LOOK_RANGE_X_DP
+                lookY = (motion.centerY - 0.5f) * LOOK_RANGE_Y_DP
             }
         }
     }
@@ -222,7 +228,7 @@ fun AppRoot() {
     LaunchedEffect(Unit) {
         while (true) {
             val idleMs = System.currentTimeMillis() - lastMotionMs
-            if (idleMs > 10 * 60 * 1000L && mood == Mood.NEUTRAL) {
+            if (idleMs > SLEEP_AFTER_MS && mood == Mood.NEUTRAL) {
                 mood = Mood.SLEEPY
                 lookX = 0f
                 lookY = 0f
@@ -236,6 +242,7 @@ fun AppRoot() {
 
     LaunchedEffect(shakes) {
         if (shakes > 0) {
+            lastMotionMs = System.currentTimeMillis()
             mood = Mood.DIZZY
             delay(3600)
             mood = Mood.ANGRY
@@ -329,6 +336,8 @@ fun AppRoot() {
             .fillMaxSize()
             .background(Color.Black)
             .clickable {
+                lastMotionMs = System.currentTimeMillis()
+                if (mood == Mood.SLEEPY) mood = Mood.NEUTRAL
                 if (currentMode == AppMode.PASSIVE) mood = Mood.LISTENING
                 val event = if (currentMode == AppMode.PASSIVE) ModeEvent.EnterAgent else ModeEvent.Interaction(System.currentTimeMillis())
                 currentMode = modeMachine.onEvent(event)

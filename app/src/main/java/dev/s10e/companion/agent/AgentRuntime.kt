@@ -4,6 +4,9 @@ import android.content.Context
 import android.content.Intent
 import dev.s10e.companion.llm.LlmClientImpl
 import dev.s10e.companion.llm.ToolSpec
+import dev.s10e.companion.plugins.PatchResult
+import dev.s10e.companion.plugins.PluginPatcher
+import dev.s10e.companion.plugins.PluginStore
 import dev.s10e.companion.vault.VaultStore
 import java.io.File
 import org.json.JSONObject
@@ -15,6 +18,8 @@ class AgentRuntime(
     allowed: () -> Boolean,
     confirm: suspend (String) -> Boolean
 ) {
+    private val patcher = PluginPatcher(PluginStore(File(context.filesDir, "plugins").apply { mkdirs() }), allowed)
+
     private val tools = listOf(
         Tool("read_screen", Risk.READ, ToolSpec("read_screen", "Liest den Bildschirm. Keine Argumente.")) { service().readScreen() },
         Tool("tap", Risk.ACT, ToolSpec("tap", "Tippt auf x und y.")) { args ->
@@ -29,6 +34,13 @@ class AgentRuntime(
         },
         Tool("type_text", Risk.ACT, ToolSpec("type_text", "Schreibt text ins aktive Feld.")) { args -> service().typeText(args.getString("text")) },
         Tool("open_app", Risk.ACT, ToolSpec("open_app", "Öffnet die App app_name.")) { args -> openApp(args.getString("app_name")) },
+        Tool("patch_plugin", Risk.ACT, ToolSpec("patch_plugin", "Ersetzt search durch replace in der Plugin-Datei file.")) { args ->
+            val result = patcher.patch(args.getString("file"), args.getString("search"), args.getString("replace"))
+            if (result == PatchResult.SUCCESS) "Plugin geändert" else throw IllegalArgumentException("Patch nicht anwendbar")
+        },
+        Tool("rollback_plugin", Risk.ACT, ToolSpec("rollback_plugin", "Macht die letzte Plugin-Änderung rückgängig.")) {
+            if (patcher.rollback() == PatchResult.SUCCESS) "Zurückgerollt" else throw IllegalStateException("Nichts zurückzurollen")
+        },
         Tool("add_card", Risk.READ, ToolSpec("add_card", "Legt die Aufgabe text an.")) { args -> addToVault(args) },
         Tool("add_note", Risk.READ, ToolSpec("add_note", "Speichert die Notiz text.")) { args -> addToVault(args) },
         Tool("move_card", Risk.READ, ToolSpec("move_card", "Verschiebt die Karte text in die Spalte column.")) { args ->

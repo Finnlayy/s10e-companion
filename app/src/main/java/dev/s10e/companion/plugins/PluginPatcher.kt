@@ -8,47 +8,42 @@ enum class PatchResult {
 }
 
 class PluginPatcher(private val store: PluginStore, private val toolsAllowed: () -> Boolean) {
+    // Der Snapshot liegt auf der Platte, damit das Zurückrollen einen Neustart übersteht.
+    private val snapshot = File(store.dir, ".snapshot")
+    private val snapshotTarget = File(store.dir, ".snapshot-target")
 
-    private var snapshotFile: File? = null
-    private var snapshotContent: String? = null
+    private fun resolve(file: String): File? {
+        val root = store.dir.canonicalFile
+        val target = File(root, file).canonicalFile
+        return target.takeIf { it.path.startsWith(root.path + File.separator) }
+    }
 
     fun patch(file: String, search: String, replace: String): PatchResult {
         if (!toolsAllowed()) return PatchResult.FAIL
 
-        val target = File(store.dir, file)
-
-        // Ensure path doesn't escape plugin dir
-        try {
-            if (!target.canonicalPath.startsWith(store.dir.canonicalPath)) {
-                return PatchResult.FAIL
-            }
+        val target = try {
+            resolve(file)
         } catch (e: IOException) {
-            return PatchResult.FAIL
-        }
+            null
+        } ?: return PatchResult.FAIL
 
         if (!target.exists()) return PatchResult.FAIL
 
         val content = target.readText()
         if (!content.contains(search)) return PatchResult.FAIL
 
-        // Create snapshot before write
-        snapshotFile = target
-        snapshotContent = content
+        snapshot.writeText(content)
+        snapshotTarget.writeText(target.path)
 
-        val newContent = content.replaceFirst(search, replace)
-        target.writeText(newContent)
+        target.writeText(content.replaceFirst(search, replace))
         return PatchResult.SUCCESS
     }
 
     fun rollback(): PatchResult {
-        val file = snapshotFile
-        val content = snapshotContent
-        if (file != null && content != null) {
-            file.writeText(content)
-            snapshotFile = null
-            snapshotContent = null
-            return PatchResult.SUCCESS
-        }
-        return PatchResult.FAIL
+        if (!toolsAllowed() || !snapshot.exists() || !snapshotTarget.exists()) return PatchResult.FAIL
+        File(snapshotTarget.readText()).writeText(snapshot.readText())
+        snapshot.delete()
+        snapshotTarget.delete()
+        return PatchResult.SUCCESS
     }
 }

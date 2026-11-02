@@ -12,7 +12,7 @@ data class Command(val tool: String, val argumentsJson: String)
 
 private const val MAX_STEPS = 8
 private const val CHAT_PROMPT = "Du bist Apollo, ein kleiner Schreibtisch-Begleiter. Antworte kurz und auf Deutsch."
-private val PHONE_TASK = Regex("""\b(tippe|wische|scrolle|bildschirm|verschiebe|karte|gib .* ein|schreibe .* ein|was steht)\b""", RegexOption.IGNORE_CASE)
+private val PHONE_TASK = Regex("""\b(tippe|wische|scrolle|bildschirm|verschiebe|karte|plugin|gib .* ein|schreibe .* ein|was steht)\b""", RegexOption.IGNORE_CASE)
 
 /** Klare Befehle laufen ohne LLM, weil das Modell freien Text entstellt. */
 fun parseCommand(text: String): Command? {

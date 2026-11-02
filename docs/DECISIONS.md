@@ -84,3 +84,6 @@ For Phase 2, `Roborazzi` screenshot tests required `isIncludeAndroidResources = 
 - Plugin UI uses `AndroidView` housing a `WebView` strictly limiting `settings.allowFileAccess` to the isolated `filesDir/plugins` folder while enforcing `settings.blockNetworkLoads = true` for security context restriction.
 - Sleepy state transitioning requires waking the face directly from the background coroutine driving motion updates over a timed gap before falling back to `Mood.SLEEPY`.
 - `AppRoot` handles injecting coordinate states directly into the `EyesCanvas` invocation instead of modifying the passive model parameters locally within `AppRoot`.
+* Die Kamera fragt ihr Recht erst nach der Mikrofon-Antwort an, weil Android nur eine Abfrage zur Zeit zeigt.
+* `patch_plugin` und `rollback_plugin` sind `ACT`-Werkzeuge und damit an Bestätigung, Not-Aus und Kindermodus gebunden. Der Snapshot liegt im Plugin-Ordner und übersteht Neustarts.
+* `OpenCodeClient` meldet ohne Passwort „nicht verbunden“.

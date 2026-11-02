@@ -56,6 +56,19 @@ class PluginPatcherTest {
     }
 
     @Test
+    fun rollback_worksAcrossPatcherInstances() {
+        val pluginDir = tempFolder.newFolder("plugins")
+        val store = PluginStore(pluginDir)
+        val file = File(pluginDir, "test.txt")
+        file.writeText("hello world")
+
+        PluginPatcher(store) { true }.patch("test.txt", "world", "universe")
+
+        assertEquals(PatchResult.SUCCESS, PluginPatcher(store) { true }.rollback())
+        assertEquals("hello world", file.readText())
+    }
+
+    @Test
     fun patch_rejectsPathOutsidePluginDir() {
         val pluginDir = tempFolder.newFolder("plugins")
         val store = PluginStore(pluginDir)

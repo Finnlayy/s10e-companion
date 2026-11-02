@@ -39,6 +39,10 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import dev.s10e.companion.agent.PhoneControlService
 import dev.s10e.companion.agent.ToolDispatcher
 import dev.s10e.companion.agent.parseCommand
+import dev.s10e.companion.kid.SharedPrefsKeyValue
+import dev.s10e.companion.plugins.OpenCodeClient
+import androidx.compose.material3.AlertDialog
+import kotlinx.coroutines.withContext
 import dev.s10e.companion.vault.VaultStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -122,6 +126,7 @@ fun ApolloTerminal(
     var boardState by remember { mutableStateOf(dev.s10e.companion.vault.Board()) }
 
     var inputText by remember { mutableStateOf("") }
+    var showPlugins by remember { mutableStateOf(false) }
 
     // Health check state
     var isServerHealthy by remember { mutableStateOf(false) }
@@ -177,28 +182,32 @@ fun ApolloTerminal(
             Button(onClick = { onEnterKidMode() }) {
                 Text("Kindermodus")
             }
-            if (dev.s10e.companion.kid.KidLockPolicy().toolsAllowed(dev.s10e.companion.core.AppMode.AGENT)) {
-                var showPlugins by remember { mutableStateOf(false) }
-                Button(
-                    onClick = { showPlugins = true },
-                    modifier = Modifier.padding(start = 8.dp)
-                ) {
-                    Text("Plugins")
+            Button(
+                onClick = {
+                    showPlugins = true
+                    onInteraction()
+                },
+                modifier = Modifier.padding(start = 8.dp)
+            ) {
+                Text("Plugins")
+            }
+            if (showPlugins) {
+                var openCodeStatus by remember { mutableStateOf("…") }
+                LaunchedEffect(Unit) {
+                    openCodeStatus = withContext(Dispatchers.IO) { OpenCodeClient(SharedPrefsKeyValue(context)).fetchServerStatus() }
                 }
-                if (showPlugins) {
-                    androidx.compose.material3.AlertDialog(
-                        onDismissRequest = { showPlugins = false },
-                        title = { Text("Plugins") },
-                        text = {
-                            Box(modifier = Modifier.fillMaxWidth().fillMaxHeight(0.8f)) {
-                                PluginPanel(File(context.filesDir, "plugins/index.html"))
-                            }
-                        },
-                        confirmButton = {
-                            Button(onClick = { showPlugins = false }) { Text("Schließen") }
+                AlertDialog(
+                    onDismissRequest = { showPlugins = false },
+                    title = { Text("Plugins, OpenCode: $openCodeStatus") },
+                    text = {
+                        Box(modifier = Modifier.fillMaxWidth().fillMaxHeight(0.8f)) {
+                            PluginPanel(File(context.filesDir, "plugins/index.html"))
                         }
-                    )
-                }
+                    },
+                    confirmButton = {
+                        Button(onClick = { showPlugins = false }) { Text("Schließen") }
+                    }
+                )
             }
             if (!hasStoragePermission) {
                 Button(
