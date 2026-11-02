@@ -113,6 +113,7 @@ class LlmClientImpl(
             val payload = JSONObject()
             payload.put("messages", msgsArray)
             payload.put("stream", true)
+            payload.put("max_tokens", 256)
 
             if (tools.isNotEmpty()) {
                 val toolsArray = JSONArray()

@@ -108,6 +108,7 @@ tasks.named("preBuild").configure {
 
 dependencies {
     implementation("com.alphacephei:vosk-android:0.3.75")
+    implementation("org.apache.commons:commons-compress:1.28.0")
     implementation(files("libs/sherpa-onnx-1.13.8.aar"))
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)

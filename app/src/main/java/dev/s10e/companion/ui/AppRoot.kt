@@ -32,7 +32,11 @@ import dev.s10e.companion.eyes.ShakeSensor
 import kotlinx.coroutines.delay
 import android.Manifest
 import android.content.pm.PackageManager
+import android.content.Context
 import android.util.Log
+import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.rememberCoroutineScope
@@ -40,17 +44,35 @@ import androidx.core.content.ContextCompat
 import dev.s10e.companion.llm.ChatMessage
 import dev.s10e.companion.llm.LlmClientImpl
 import dev.s10e.companion.llm.LlmEvent
-import dev.s10e.companion.speech.PiperSpeaker
-import dev.s10e.companion.speech.SpeechController
+import dev.s10e.companion.speech.SpeechBootstrap
+import dev.s10e.companion.speech.SpeechStack
+import dev.s10e.companion.speech.UNLOCK_GRAMMAR
 import dev.s10e.companion.speech.VoiceIntent
-import dev.s10e.companion.speech.VoskRecognizer
 import dev.s10e.companion.speech.classify
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import org.vosk.Model
 import java.io.File
+
+private const val LISTEN_TIMEOUT_MS = 8_000L
+private const val SYSTEM_PROMPT = "Du bist Apollo, ein kleiner Schreibtisch-Begleiter. Antworte kurz und auf Deutsch."
+
+private suspend fun answer(context: Context, stack: SpeechStack, question: String) {
+    val apiKey = File(context.filesDir, "api_key.txt")
+    val client = LlmClientImpl(apiKeyProvider = { apiKey.readText().trim() })
+    val reply = StringBuilder()
+    client.chat(listOf(ChatMessage("system", SYSTEM_PROMPT), ChatMessage("user", question))).collect { event ->
+        when (event) {
+            is LlmEvent.Token -> reply.append(event.text)
+            is LlmEvent.Failed -> Log.w("S10eCompanion", "LLM-Fehler: ${event.message}")
+            else -> {}
+        }
+    }
+    try {
+        stack.controller.say(reply.toString())
+    } catch (e: Exception) {
+        Log.w("S10eCompanion", "Sprachausgabe fehlgeschlagen: ${e.message}")
+    }
+}
 
 @Composable
 fun AppRoot() {
@@ -63,87 +85,52 @@ fun AppRoot() {
     var shakes by remember { mutableIntStateOf(0) }
 
     val scope = rememberCoroutineScope()
-    var speechController by remember { mutableStateOf<SpeechController?>(null) }
-    var voskRecognizer by remember { mutableStateOf<VoskRecognizer?>(null) }
+    var speech by remember { mutableStateOf<SpeechStack?>(null) }
+    var micGranted by remember {
+        mutableStateOf(ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED)
+    }
+    val lifecycleState by (context as LifecycleOwner).lifecycle.currentStateFlow.collectAsState()
+    val visible = lifecycleState.isAtLeast(Lifecycle.State.STARTED)
 
     val requestPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { isGranted: Boolean ->
-        // Ignored
+        micGranted = isGranted
     }
 
     LaunchedEffect(Unit) {
-        if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-            requestPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-        }
-
-        withContext(Dispatchers.IO) {
-            try {
-                val modelsDir = File(context.filesDir, "models")
-                val voskModelDir = File(modelsDir, "vosk-model-small-de-0.15")
-                val piperModelDir = File(modelsDir, "vits-piper-de_DE-thorsten-medium")
-
-                if (voskModelDir.exists() && piperModelDir.exists()) {
-                    val model = Model(voskModelDir.absolutePath)
-                    val vRecognizer = VoskRecognizer(model)
-                    voskRecognizer = vRecognizer
-                    val pSpeaker = PiperSpeaker(context.assets, piperModelDir.absolutePath)
-                    speechController = SpeechController(vRecognizer, pSpeaker)
-                } else {
-                    Log.w("AppRoot", "Speech models missing. Continuing without speech.")
-                }
-            } catch (e: Exception) {
-                Log.w("AppRoot", "Error loading speech models: ${e.message}")
-            }
-        }
+        if (!micGranted) requestPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+        speech = SpeechBootstrap(context).load()
     }
 
-    LaunchedEffect(voskRecognizer, currentMode) {
-        val rec = voskRecognizer ?: return@LaunchedEffect
-        val grammar = if (currentMode == AppMode.KID_LOCKED) {
-            listOf("agentenmodus aktivieren", "agenten modus aktivieren", "[unk]")
-        } else {
-            null
-        }
-        speechController?.setGrammar(grammar) ?: rec.start(grammar)
+    LaunchedEffect(speech, currentMode, micGranted, visible) {
+        val stack = speech ?: return@LaunchedEffect
+        if (!micGranted || !visible) return@LaunchedEffect
+        stack.controller.setGrammar(if (currentMode == AppMode.AGENT) null else UNLOCK_GRAMMAR)
 
         try {
-            rec.results.collectLatest { transcript ->
-                val intent = classify(transcript, currentMode == AppMode.KID_LOCKED)
-                when (intent) {
-                    VoiceIntent.UnlockPhrase -> {
-                        currentMode = modeMachine.onEvent(ModeEvent.EnterAgent)
-                    }
-                    is VoiceIntent.Free -> {
-                        if (mood == Mood.LISTENING) {
-                            mood = Mood.THINKING
-                            scope.launch(Dispatchers.IO) {
-                                try {
-                                    val client = LlmClientImpl()
-                                    var fullReply = ""
-                                    client.chat(listOf(ChatMessage("user", intent.text))).collect { event ->
-                                        when (event) {
-                                            is LlmEvent.Token -> fullReply += event.text
-                                            is LlmEvent.Done -> {
-                                                speechController?.say(fullReply)
-                                                mood = Mood.NEUTRAL
-                                            }
-                                            is LlmEvent.Failed -> mood = Mood.NEUTRAL
-                                            else -> {}
-                                        }
-                                    }
-                                } catch (e: Exception) {
-                                    mood = Mood.NEUTRAL
-                                }
-                            }
+            stack.recognizer.results.collect { transcript ->
+                when (val intent = classify(transcript, currentMode == AppMode.KID_LOCKED)) {
+                    VoiceIntent.UnlockPhrase -> currentMode = modeMachine.onEvent(ModeEvent.EnterAgent)
+                    is VoiceIntent.Free -> if (mood == Mood.LISTENING) {
+                        mood = Mood.THINKING
+                        scope.launch(Dispatchers.IO) {
+                            answer(context, stack, intent.text)
+                            mood = Mood.NEUTRAL
                         }
                     }
-                    VoiceIntent.Ignored -> {}
-                    VoiceIntent.EnterKidMode -> {}
+                    VoiceIntent.Ignored, VoiceIntent.EnterKidMode -> {}
                 }
             }
         } finally {
-            rec.stop()
+            stack.controller.stopListening()
+        }
+    }
+
+    LaunchedEffect(mood) {
+        if (mood == Mood.LISTENING) {
+            delay(LISTEN_TIMEOUT_MS)
+            mood = Mood.NEUTRAL
         }
     }
 
@@ -186,7 +173,7 @@ fun AppRoot() {
             .fillMaxSize()
             .background(Color.Black)
             .clickable {
-                mood = Mood.LISTENING
+                if (currentMode != AppMode.KID_LOCKED) mood = Mood.LISTENING
                 val event = if (currentMode == AppMode.PASSIVE) ModeEvent.EnterAgent else ModeEvent.Interaction(System.currentTimeMillis())
                 currentMode = modeMachine.onEvent(event)
             },

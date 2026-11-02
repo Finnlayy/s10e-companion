@@ -1,5 +1,7 @@
 package dev.s10e.companion.speech
 
+import android.util.Log
+import java.io.IOException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -11,23 +13,31 @@ import org.vosk.Recognizer
 import org.vosk.android.RecognitionListener
 import org.vosk.android.SpeechService
 
-class VoskRecognizer(private val model: Model?) : dev.s10e.companion.speech.Recognizer {
+class VoskRecognizer(private val model: Model) : dev.s10e.companion.speech.Recognizer {
     private var speechService: SpeechService? = null
+    private var recognizer: Recognizer? = null
     private val _results = MutableSharedFlow<String>(extraBufferCapacity = 1)
     override val results: Flow<String> = _results
     private val scope = CoroutineScope(Dispatchers.Default)
 
+    @Synchronized
     override fun start(grammar: List<String>?) {
-        if (model == null) return
-
-        val recognizer = if (grammar != null) {
+        stop()
+        val next = if (grammar != null) {
             val grammarJson = grammar.joinToString(prefix = "[", postfix = "]") { "\"$it\"" }
             Recognizer(model, 16000.0f, grammarJson)
         } else {
             Recognizer(model, 16000.0f)
         }
+        try {
+            speechService = SpeechService(next, 16000.0f)
+        } catch (e: IOException) {
+            Log.w("S10eCompanion", "Mikrofon nicht verfügbar: ${e.message}")
+            next.close()
+            return
+        }
+        recognizer = next
 
-        speechService = SpeechService(recognizer, 16000.0f)
         speechService?.startListening(object : RecognitionListener {
             override fun onPartialResult(hypothesis: String?) {}
             override fun onResult(hypothesis: String?) {
@@ -59,9 +69,12 @@ class VoskRecognizer(private val model: Model?) : dev.s10e.companion.speech.Reco
         })
     }
 
+    @Synchronized
     override fun stop() {
         speechService?.stop()
         speechService?.shutdown()
         speechService = null
+        recognizer?.close()
+        recognizer = null
     }
 }

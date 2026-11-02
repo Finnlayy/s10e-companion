@@ -1,6 +1,5 @@
 package dev.s10e.companion.speech
 
-import android.content.res.AssetManager
 import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioTrack
@@ -9,36 +8,26 @@ import com.k2fsa.sherpa.onnx.OfflineTtsConfig
 import com.k2fsa.sherpa.onnx.OfflineTtsModelConfig
 import com.k2fsa.sherpa.onnx.OfflineTtsVitsModelConfig
 
-class PiperSpeaker(private val assetManager: AssetManager?, private val modelPath: String?) : Speaker {
-    private var tts: OfflineTts? = null
-    private var sampleRate: Int = 22050
+class PiperSpeaker(modelPath: String) : Speaker {
+    private val tts: OfflineTts
+    private val sampleRate: Int
 
     init {
-        if (assetManager != null && modelPath != null) {
-            val vits = OfflineTtsVitsModelConfig(
-                model = "$modelPath/de_DE-thorsten-medium.onnx",
-                tokens = "$modelPath/tokens.txt",
-                dataDir = "$modelPath/espeak-ng-data"
-            )
-            val modelConfig = OfflineTtsModelConfig(
-                vits = vits,
-                numThreads = 1,
-                debug = false,
-                provider = "cpu"
-            )
-            val config = OfflineTtsConfig(
-                model = modelConfig,
-                maxNumSentences = 1
-            )
-            tts = OfflineTts(assetManager, config)
-            sampleRate = tts?.sampleRate() ?: 22050
-        }
+        val vits = OfflineTtsVitsModelConfig(
+            model = "$modelPath/de_DE-thorsten-medium.onnx",
+            tokens = "$modelPath/tokens.txt",
+            dataDir = "$modelPath/espeak-ng-data"
+        )
+        val modelConfig = OfflineTtsModelConfig(vits = vits, numThreads = 2, debug = false, provider = "cpu")
+        val config = OfflineTtsConfig(model = modelConfig, maxNumSentences = 1)
+        tts = OfflineTts(config = config)
+        sampleRate = tts.sampleRate()
     }
 
     override suspend fun speak(text: String) {
-        val currentTts = tts ?: return
+        if (text.isBlank()) return
 
-        val audio = currentTts.generate(text, 0, 1.0f)
+        val audio = tts.generate(text, 0, 1.0f)
         val samples = audio.samples
 
         val shortSamples = ShortArray(samples.size) { i ->
@@ -64,14 +53,14 @@ class PiperSpeaker(private val assetManager: AssetManager?, private val modelPat
             .setBufferSizeInBytes(bufferSize)
             .build()
 
-        track.write(shortSamples, 0, shortSamples.size)
-        track.play()
-
-        // Wait for it to finish playing
-        val durationMs = (samples.size.toLong() * 1000) / sampleRate
-        kotlinx.coroutines.delay(durationMs + 100)
-
-        track.stop()
-        track.release()
+        try {
+            track.write(shortSamples, 0, shortSamples.size)
+            track.play()
+            val durationMs = (samples.size.toLong() * 1000) / sampleRate
+            kotlinx.coroutines.delay(durationMs + 100)
+            track.stop()
+        } finally {
+            track.release()
+        }
     }
 }
