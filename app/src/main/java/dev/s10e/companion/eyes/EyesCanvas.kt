@@ -19,7 +19,7 @@ import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.drawscope.translate
 
 @Composable
-fun EyesCanvas(mood: Mood) {
+fun EyesCanvas(mood: Mood, lookX: Float = 0f, lookY: Float = 0f) {
     val timeNanos = remember { mutableLongStateOf(0L) }
 
     LaunchedEffect(Unit) {
@@ -32,7 +32,7 @@ fun EyesCanvas(mood: Mood) {
 
     Canvas(modifier = Modifier.fillMaxSize().background(Color.Black)) {
         val t = timeNanos.longValue
-        val frame = eyeFrame(mood, t)
+        val frame = eyeFrame(mood, t, lookX, lookY)
         
         val spacing = 58f.dp.toPx()
         val centerX = size.width / 2

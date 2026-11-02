@@ -28,6 +28,32 @@ android {
         }
     }
 
+    lint {
+        // Die App kommt nie in den Play Store und zielt bewusst auf Android 12 des S10e.
+        disable += "ExpiredTargetSdkVersion"
+    }
+
+    signingConfigs {
+        create("release") {
+            val keystore = System.getenv("S10E_KEYSTORE")
+            val keystorePassword = System.getenv("S10E_KEYSTORE_PASSWORD")
+            val alias = System.getenv("S10E_KEY_ALIAS")
+
+            if (!keystore.isNullOrEmpty() && !keystorePassword.isNullOrEmpty() && !alias.isNullOrEmpty()) {
+                storeFile = file(keystore)
+                storePassword = keystorePassword
+                keyAlias = alias
+                keyPassword = keystorePassword
+            } else {
+                val debugConfig = signingConfigs.getByName("debug")
+                storeFile = debugConfig.storeFile
+                storePassword = debugConfig.storePassword
+                keyAlias = debugConfig.keyAlias
+                keyPassword = debugConfig.keyPassword
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
@@ -35,6 +61,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            signingConfig = signingConfigs.getByName("release")
         }
     }
     compileOptions {
@@ -107,6 +134,12 @@ tasks.named("preBuild").configure {
 }
 
 dependencies {
+
+    implementation("androidx.camera:camera-core:1.6.2")
+    implementation("androidx.camera:camera-camera2:1.6.2")
+    implementation("androidx.camera:camera-lifecycle:1.6.2")
+    implementation("androidx.camera:camera-view:1.6.2")
+
     implementation("com.alphacephei:vosk-android:0.3.75")
     implementation("org.apache.commons:commons-compress:1.28.0")
     implementation(files("libs/sherpa-onnx-1.13.8.aar"))

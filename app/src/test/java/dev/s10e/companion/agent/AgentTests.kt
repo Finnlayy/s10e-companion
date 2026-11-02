@@ -86,7 +86,7 @@ class AgentTests {
             confirm = { true },
             allowed = { true }
         )
-        val reply = AgentLoop(client, dispatcher, tempLog()).run("Was steht auf dem Bildschirm", listOf(spec))
+        val reply = AgentLoop(client, dispatcher, tempLog()).run("Scrolle den Bildschirm", listOf(spec))
         assertEquals("[Not-Aus ausgelöst]", reply)
         assertEquals(1, calls)
         ToolDispatcher.killSwitch = false
@@ -132,6 +132,73 @@ class AgentTests {
         assertEquals(0, sentTools)
     }
 
+    private class RecordingClient : dev.s10e.companion.llm.LlmClient {
+        val sentTools = mutableListOf<Int>()
+        var lastMessages: List<dev.s10e.companion.llm.ChatMessage> = emptyList()
+
+        override fun chat(
+            messages: List<dev.s10e.companion.llm.ChatMessage>,
+            tools: List<dev.s10e.companion.llm.ToolSpec>
+        ): kotlinx.coroutines.flow.Flow<dev.s10e.companion.llm.LlmEvent> = kotlinx.coroutines.flow.flow {
+            sentTools += tools.size
+            lastMessages = messages
+            emit(dev.s10e.companion.llm.LlmEvent.Token("Fertig"))
+        }
+    }
+
+    private fun phoneTools(onTap: () -> Unit) = listOf(
+        Tool("read_screen", Risk.READ, dev.s10e.companion.llm.ToolSpec("read_screen", "")) { "Text: Start" },
+        Tool("tap", Risk.ACT, dev.s10e.companion.llm.ToolSpec("tap", "")) { onTap(); "ok" }
+    )
+
+    @Test
+    fun agentLoop_screenQuestion_readsScreenAndOffersNoTools() = runTest {
+        val client = RecordingClient()
+        var asked = 0
+        val tools = phoneTools { throw AssertionError("Lesefrage darf nicht tippen") }
+        val dispatcher = ToolDispatcher(tools, confirm = { asked++; true }, allowed = { true })
+
+        val reply = AgentLoop(client, dispatcher, tempLog()).run("Was steht auf dem Bildschirm", tools.map { it.spec })
+
+        assertEquals("Fertig", reply)
+        assertEquals(listOf(0), client.sentTools)
+        assertEquals(0, asked)
+        assertTrue(client.lastMessages.any { it.content.contains("Text: Start") })
+    }
+
+    @Test
+    fun agentLoop_readRequestWithoutScreen_offersNoTools() = runTest {
+        val client = RecordingClient()
+        val tools = phoneTools { throw AssertionError("Lesefrage darf nicht tippen") }
+        val dispatcher = ToolDispatcher(tools, confirm = { true }, allowed = { true })
+
+        AgentLoop(client, dispatcher, tempLog()).run("Was steht in meinem Kalender", tools.map { it.spec })
+
+        assertEquals(listOf(0), client.sentTools)
+    }
+
+    @Test
+    fun agentLoop_screenQuestion_inKidMode_reportsError() = runTest {
+        val client = RecordingClient()
+        val tools = phoneTools { }
+        val dispatcher = ToolDispatcher(tools, confirm = { true }, allowed = { false })
+
+        val reply = AgentLoop(client, dispatcher, tempLog()).run("Lies den Bildschirm", tools.map { it.spec })
+
+        assertEquals("[Fehler: Im Kindermodus nicht erlaubt]", reply)
+        assertTrue(client.sentTools.isEmpty())
+    }
+
+    @Test
+    fun agentLoop_actionRequest_stillOffersTools() = runTest {
+        val client = RecordingClient()
+        val tools = phoneTools { }
+        val dispatcher = ToolDispatcher(tools, confirm = { true }, allowed = { true })
+
+        AgentLoop(client, dispatcher, tempLog()).run("Tippe auf Start", tools.map { it.spec })
+
+        assertEquals(listOf(2), client.sentTools)
+    }
 
     @Test
     fun agentLoop_stopsAfter8Steps() = runTest {
@@ -153,7 +220,7 @@ class AgentTests {
         )
         val loop = AgentLoop(client, dispatcher, tempLog())
 
-        loop.run("Was steht auf dem Bildschirm", listOf(dev.s10e.companion.llm.ToolSpec("read_screen", "")))
+        loop.run("Scrolle den Bildschirm", listOf(dev.s10e.companion.llm.ToolSpec("read_screen", "")))
         assertEquals(8, callCount)
     }
 

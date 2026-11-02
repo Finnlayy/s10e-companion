@@ -77,3 +77,20 @@ For Phase 2, `Roborazzi` screenshot tests required `isIncludeAndroidResources = 
 * Der Not-Aus beendet Stream und Schleife direkt. Ein neuer Auftrag der Person hebt ihn wieder auf.
 * `read_screen` lässt Passwortfelder aus.
 * Auch `open_app` braucht als `ACT` eine Bestätigung pro Aufruf.
+
+## Phase 9: Präsenz und Plugins
+- We configured `CameraX` dependencies explicitly targeting `1.6.2` to provide stability for front-camera logic within `CameraPresence`.
+- Motion processing occurs on a single background executor, tracking changed pixels between `luma` byteframes frame-by-frame and rejecting changes below the established `pixelDelta=55` parameter for noise stability.
+- Plugin UI uses `AndroidView` housing a `WebView` strictly limiting `settings.allowFileAccess` to the isolated `filesDir/plugins` folder while enforcing `settings.blockNetworkLoads = true` for security context restriction.
+- Sleepy state transitioning requires waking the face directly from the background coroutine driving motion updates over a timed gap before falling back to `Mood.SLEEPY`.
+- `AppRoot` handles injecting coordinate states directly into the `EyesCanvas` invocation instead of modifying the passive model parameters locally within `AppRoot`.
+* Die Kamera fragt ihr Recht erst nach der Mikrofon-Antwort an, weil Android nur eine Abfrage zur Zeit zeigt.
+* `patch_plugin` und `rollback_plugin` sind `ACT`-Werkzeuge und damit an Bestätigung, Not-Aus und Kindermodus gebunden. Der Snapshot liegt im Plugin-Ordner und übersteht Neustarts.
+* `OpenCodeClient` meldet ohne Passwort „nicht verbunden“.
+
+## Phase 10 Decisions
+* `push-models.sh` schiebt nur nach `Android/data`. Der Rückfall auf `/sdcard/Download/` aus dem Plan entfällt, weil die App dort nicht importiert und zwei Gigabyte doppelt lägen.
+* Die Release-Signatur steckt in `app/build.gradle.kts` und nutzt ohne `S10E_KEYSTORE` den Debug-Key, `build-all.sh` warnt dann.
+
+## Nachtest
+* Fragen und „Lies…“ bekommen keine Werkzeuge mehr, weil das Modell bei „Was steht auf dem Bildschirm“ Argumente und Tipps erfand. Nennt der Auftrag den Bildschirm, ruft der Code `read_screen` selbst auf, das Modell formuliert nur die Antwort.

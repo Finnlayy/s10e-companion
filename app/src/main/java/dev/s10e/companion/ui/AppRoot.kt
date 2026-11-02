@@ -67,11 +67,17 @@ import dev.s10e.companion.kid.PinStore
 import dev.s10e.companion.kid.SharedPrefsKeyValue
 import dev.s10e.companion.kid.PinResult
 import dev.s10e.companion.vault.VaultStore
+import dev.s10e.companion.presence.CameraPresence
+import dev.s10e.companion.presence.Motion
+
 
 private class PendingAction(val description: String, val answer: CompletableDeferred<Boolean>)
 
 private enum class PinScreen { SET_FOR_KID_MODE, UNLOCK, DEVICE_OWNER }
 
+private const val SLEEP_AFTER_MS = 10 * 60 * 1000L
+private const val LOOK_RANGE_X_DP = 84f
+private const val LOOK_RANGE_Y_DP = 44f
 private const val LISTEN_TIMEOUT_MS = 8_000L
 private const val PIN_GESTURE_MS = 5_000L
 
@@ -84,7 +90,12 @@ fun AppRoot() {
     val modeMachine = remember { ModeMachine(if (kidState.locked) AppMode.KID_LOCKED else AppMode.PASSIVE) }
     var currentMode by remember { mutableStateOf(modeMachine.mode) }
     var mood by remember { mutableStateOf(Mood.NEUTRAL) }
+
     var shakes by remember { mutableIntStateOf(0) }
+    var lookX by remember { mutableStateOf(0f) }
+    var lookY by remember { mutableStateOf(0f) }
+    var lastMotionMs by remember { mutableStateOf(System.currentTimeMillis()) }
+
     var pinScreen by remember { mutableStateOf<PinScreen?>(null) }
     var pinMessage by remember { mutableStateOf<String?>(null) }
     var terminalReply by remember { mutableStateOf("") }
@@ -121,6 +132,7 @@ fun AppRoot() {
     var micGranted by remember {
         mutableStateOf(ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED)
     }
+    var micAsked by remember { mutableStateOf(micGranted) }
     val lifecycleState by (context as LifecycleOwner).lifecycle.currentStateFlow.collectAsState()
     val visible = lifecycleState.isAtLeast(Lifecycle.State.STARTED)
 
@@ -128,6 +140,7 @@ fun AppRoot() {
         ActivityResultContracts.RequestPermission()
     ) { isGranted: Boolean ->
         micGranted = isGranted
+        micAsked = true
     }
 
     LaunchedEffect(Unit) {
@@ -197,10 +210,39 @@ fun AppRoot() {
         }
     }
 
+
+    // Android zeigt nur eine Rechteabfrage zur Zeit, die Kamera wartet deshalb auf die Mikrofon-Antwort.
+    if (visible && micAsked) {
+        CameraPresence { motion ->
+            lastMotionMs = System.currentTimeMillis()
+            if (mood == Mood.SLEEPY) {
+                mood = Mood.NEUTRAL
+            }
+            if (mood == Mood.NEUTRAL) {
+                lookX = (motion.centerX - 0.5f) * LOOK_RANGE_X_DP
+                lookY = (motion.centerY - 0.5f) * LOOK_RANGE_Y_DP
+            }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        while (true) {
+            val idleMs = System.currentTimeMillis() - lastMotionMs
+            if (idleMs > SLEEP_AFTER_MS && mood == Mood.NEUTRAL) {
+                mood = Mood.SLEEPY
+                lookX = 0f
+                lookY = 0f
+            }
+            delay(1000)
+        }
+    }
+
     ShakeSensor { shakes++ }
+
 
     LaunchedEffect(shakes) {
         if (shakes > 0) {
+            lastMotionMs = System.currentTimeMillis()
             mood = Mood.DIZZY
             delay(3600)
             mood = Mood.ANGRY
@@ -294,6 +336,8 @@ fun AppRoot() {
             .fillMaxSize()
             .background(Color.Black)
             .clickable {
+                lastMotionMs = System.currentTimeMillis()
+                if (mood == Mood.SLEEPY) mood = Mood.NEUTRAL
                 if (currentMode == AppMode.PASSIVE) mood = Mood.LISTENING
                 val event = if (currentMode == AppMode.PASSIVE) ModeEvent.EnterAgent else ModeEvent.Interaction(System.currentTimeMillis())
                 currentMode = modeMachine.onEvent(event)
@@ -301,7 +345,7 @@ fun AppRoot() {
         contentAlignment = Alignment.Center
     ) {
         when (currentMode) {
-            AppMode.PASSIVE -> EyesCanvas(mood)
+            AppMode.PASSIVE -> EyesCanvas(mood = mood, lookX = lookX, lookY = lookY)
             AppMode.AGENT -> ApolloTerminal(
                 onMoodChange = { mood = it },
                 onEnterKidMode = { enterKidMode() },
@@ -316,20 +360,23 @@ fun AppRoot() {
                 vaultVersion = vaultVersion,
                 onBoardChanged = { vaultVersion++ }
             )
-            AppMode.KID_LOCKED -> EyesCanvas(mood)
+            AppMode.KID_LOCKED -> EyesCanvas(mood = mood, lookX = lookX, lookY = lookY)
         }
         // Versteckter Ausweg, er funktioniert auch ohne Mikrofon und Erkennung.
-        Box(
-            modifier = Modifier
-                .align(Alignment.TopStart)
-                .fillMaxSize(0.2f)
-                .pointerInput(Unit) {
-                    awaitEachGesture {
-                        awaitFirstDown()
-                        val released = withTimeoutOrNull(PIN_GESTURE_MS) { waitForUpOrCancellation() ?: Unit }
-                        if (released == null) openPin(if (pinStore.isSet()) PinScreen.UNLOCK else PinScreen.SET_FOR_KID_MODE)
+        // Im Terminal entfällt das Feld, es läge sonst über den Knöpfen.
+        if (currentMode != AppMode.AGENT) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .fillMaxSize(0.2f)
+                    .pointerInput(Unit) {
+                        awaitEachGesture {
+                            awaitFirstDown()
+                            val released = withTimeoutOrNull(PIN_GESTURE_MS) { waitForUpOrCancellation() ?: Unit }
+                            if (released == null) openPin(if (pinStore.isSet()) PinScreen.UNLOCK else PinScreen.SET_FOR_KID_MODE)
+                        }
                     }
-                }
-        )
+            )
+        }
     }
 }
