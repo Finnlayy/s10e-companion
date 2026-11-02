@@ -230,7 +230,10 @@ fun AppRoot() {
     LaunchedEffect(Unit) {
         while (true) {
             delay(1000)
-            currentMode = modeMachine.onEvent(ModeEvent.Tick(System.currentTimeMillis()))
+            // Solange der Agent arbeitet oder auf eine Bestätigung wartet, bleibt das Terminal offen.
+            val now = System.currentTimeMillis()
+            val busy = mood == Mood.THINKING || pendingAction != null
+            currentMode = modeMachine.onEvent(if (busy) ModeEvent.Interaction(now) else ModeEvent.Tick(now))
         }
     }
 
@@ -309,6 +312,7 @@ fun AppRoot() {
                 reply = terminalReply,
                 onReplyChange = { terminalReply = it },
                 agent = agent,
+                agentScope = scope,
                 vaultVersion = vaultVersion,
                 onBoardChanged = { vaultVersion++ }
             )

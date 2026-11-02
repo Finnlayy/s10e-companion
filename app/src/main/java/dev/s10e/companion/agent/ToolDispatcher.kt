@@ -21,6 +21,8 @@ class ToolDispatcher(
         /** Der Not-Aus liegt bewusst außerhalb der LLM-Logik. */
         @Volatile
         var killSwitch: Boolean = false
+
+        const val DENIED = "Abgelehnt"
     }
 
     suspend fun dispatch(name: String, argumentsJson: String): ToolResult {
@@ -35,7 +37,7 @@ class ToolDispatcher(
         }
 
         if (tool.risk == Risk.ACT && !confirm("$name $argumentsJson")) {
-            return ToolResult.Error("Abgelehnt")
+            return ToolResult.Error(DENIED)
         }
 
         return try {

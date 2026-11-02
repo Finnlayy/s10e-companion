@@ -97,7 +97,9 @@ class AgentLoop(
                 name == null -> return text
                 name == "none" -> useTools = false
                 else -> {
-                    val outcome = when (val result = dispatch(name, toolArgs)) {
+                    val result = dispatch(name, toolArgs)
+                    if (result == ToolResult.Error(ToolDispatcher.DENIED)) return "Abgelehnt, ich führe das nicht aus."
+                    val outcome = when (result) {
                         is ToolResult.Success -> result.result
                         is ToolResult.Error -> "Fehler: ${result.message}"
                     }
