@@ -2,13 +2,23 @@ package dev.s10e.companion.eyes
 
 import kotlin.math.sin
 
-enum class Mood { NEUTRAL, HAPPY, ANGRY, LISTENING, THINKING, DIZZY, SLEEPY }
+enum class Mood { NEUTRAL, HAPPY, ANGRY, LISTENING, THINKING, DIZZY, SLEEPY, SAD, SURPRISED, CONFUSED, EXCITED, LOVE }
 
-data class EyeShape(val width: Float, val height: Float, val corner: Float, val rotationDeg: Float, val argb: Long)
+/** Kurze Gefühle, die von selbst wieder zu NEUTRAL werden. */
+val FLEETING_MOODS = setOf(Mood.HAPPY, Mood.ANGRY, Mood.SAD, Mood.SURPRISED, Mood.CONFUSED, Mood.EXCITED, Mood.LOVE)
+
+data class EyeShape(
+    val width: Float,
+    val height: Float,
+    val corner: Float,
+    val rotationDeg: Float,
+    val argb: Long,
+    val heart: Boolean = false
+)
 
 data class EyeFrame(val left: EyeShape, val right: EyeShape, val offsetX: Float, val offsetY: Float)
 
-fun eyeFrame(mood: Mood, timeNanos: Long, lookX: Float = 0f, lookY: Float = 0f): EyeFrame {
+fun eyeFrame(mood: Mood, timeNanos: Long, lookX: Float = 0f, lookY: Float = 0f, pose: IdlePose = IdlePose()): EyeFrame {
     // Auge 108×148 dp, Ecke 40 dp, Abstand 58 dp
     val defaultWidth = 108f
     val defaultHeight = 148f
@@ -22,6 +32,8 @@ fun eyeFrame(mood: Mood, timeNanos: Long, lookX: Float = 0f, lookY: Float = 0f):
     var rotL = 0f
     var rotR = 0f
     var color = 0xFF00F0FF // NEUTRAL
+    var heart = false
+    val tSec = timeNanos / 1_000_000_000.0
 
     when (mood) {
         Mood.NEUTRAL -> {
@@ -68,6 +80,45 @@ fun eyeFrame(mood: Mood, timeNanos: Long, lookX: Float = 0f, lookY: Float = 0f):
             heightL = 10f
             heightR = 10f
         }
+        Mood.SAD -> {
+            color = 0xFF4D7CFF
+            rotL = -16f
+            rotR = 16f
+            heightL = defaultHeight * 0.75f
+            heightR = defaultHeight * 0.75f
+        }
+        Mood.SURPRISED -> {
+            color = 0xFFE8FBFF
+            widthL = 96f
+            widthR = 96f
+            heightL = 176f
+            heightR = 176f
+            cornerL = 48f
+            cornerR = 48f
+        }
+        Mood.CONFUSED -> {
+            color = 0xFFFFC14D
+            heightL = 150f
+            heightR = 62f
+            rotR = 12f
+        }
+        Mood.EXCITED -> {
+            color = 0xFFFF66CC
+            val pulse = 1f + 0.08f * sin(tSec * 18).toFloat()
+            widthL = defaultWidth * pulse
+            widthR = defaultWidth * pulse
+            heightL = defaultHeight * pulse
+            heightR = defaultHeight * pulse
+        }
+        Mood.LOVE -> {
+            color = 0xFFFF4D8D
+            heart = true
+            val pulse = 1f + 0.08f * sin(tSec * 7).toFloat()
+            widthL = 124f * pulse
+            widthR = 124f * pulse
+            heightL = 116f * pulse
+            heightR = 116f * pulse
+        }
     }
 
     val blinkCycle = 4_000_000_000L
@@ -84,15 +135,19 @@ fun eyeFrame(mood: Mood, timeNanos: Long, lookX: Float = 0f, lookY: Float = 0f):
         heightR -= (heightR - 4f) * progress
     }
 
-    val tSec = timeNanos / 1_000_000_000.0
+    // Leerlauf-Gesten gelten nur im Ruhezustand, sonst störten sie ein gezeigtes Gefühl.
+    val idle = if (mood == Mood.NEUTRAL) pose else IdlePose()
+    heightL = (heightL * idle.leftOpen).coerceAtLeast(4f)
+    heightR = (heightR * idle.rightOpen).coerceAtLeast(4f)
+
     val driftX = (sin(tSec * 0.1) * 4f).toFloat()
     val driftY = (sin(tSec * 0.13) * 4f).toFloat()
 
-    val finalOffsetX = lookX + driftX
+    val finalOffsetX = lookX + driftX + idle.glanceX
     val finalOffsetY = lookY + driftY
 
-    val left = EyeShape(widthL, heightL, cornerL, rotL, color)
-    val right = EyeShape(widthR, heightR, cornerR, rotR, color)
+    val left = EyeShape(widthL, heightL, cornerL, rotL, color, heart)
+    val right = EyeShape(widthR, heightR, cornerR, rotR, color, heart)
 
     return EyeFrame(left, right, finalOffsetX, finalOffsetY)
 }

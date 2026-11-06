@@ -1,5 +1,6 @@
 package dev.s10e.companion.agent
 
+import dev.s10e.companion.eyes.Mood
 import dev.s10e.companion.llm.ChatMessage
 import dev.s10e.companion.llm.LlmClient
 import dev.s10e.companion.llm.LlmEvent
@@ -11,7 +12,7 @@ import org.json.JSONObject
 data class Command(val tool: String, val argumentsJson: String)
 
 private const val MAX_STEPS = 8
-private const val CHAT_PROMPT = "Du bist Apollo, ein kleiner Schreibtisch-Begleiter. Antworte kurz und auf Deutsch."
+private val CHAT_PROMPT = "Du bist Apollo, ein kleiner Schreibtisch-Begleiter. Antworte kurz und auf Deutsch. $MOOD_TAG_PROMPT"
 private const val READ_SCREEN = "read_screen"
 private val PHONE_TASK = Regex("""\b(tippe|wische|scrolle|bildschirm|verschiebe|karte|plugin|gib .* ein|schreibe .* ein)\b""", RegexOption.IGNORE_CASE)
 private val READ_ONLY_REQUEST = Regex("""^\s*(was|wer|wen|wem|wie|wo|wann|warum|wieso|weshalb|welche[rsmn]?|lies)\b""", RegexOption.IGNORE_CASE)
@@ -54,7 +55,8 @@ class AgentLoop(
     suspend fun run(
         initialPrompt: String,
         tools: List<ToolSpec>,
-        onReplyText: ((String) -> Unit)? = null
+        onReplyText: ((String) -> Unit)? = null,
+        onMood: ((Mood) -> Unit)? = null
     ): String {
         // Ein neuer Auftrag der Person hebt einen früheren Not-Aus auf.
         ToolDispatcher.killSwitch = false
@@ -94,7 +96,7 @@ class AgentLoop(
                     when (event) {
                         is LlmEvent.Token -> {
                             text += event.text
-                            onReplyText?.invoke(text)
+                            onReplyText?.invoke(splitMoodTag(text).text)
                         }
                         is LlmEvent.ToolCall -> {
                             toolName = event.name
@@ -109,7 +111,11 @@ class AgentLoop(
             val name = toolName
             when {
                 ToolDispatcher.killSwitch -> return "[Not-Aus ausgelöst]"
-                name == null -> return text
+                name == null -> {
+                    val reply = splitMoodTag(text)
+                    reply.mood?.let { onMood?.invoke(it) }
+                    return reply.text
+                }
                 name == "none" -> useTools = false
                 else -> {
                     val result = dispatch(name, toolArgs)

@@ -102,3 +102,11 @@ For Phase 2, `Roborazzi` screenshot tests required `isIncludeAndroidResources = 
 * Der Blick geht nach 2,5 s ohne Bewegung zurück zur Mitte und wird weich animiert.
 * Neigen und Hochheben gab es nicht. `TiltTracker` vergleicht die Schwerkraft mit einer langsam folgenden Ruhelage, die Augen rutschen zur tieferen Seite und Hochheben zeigt kurz HAPPY.
 * Die Videovorlagen gelten für das Gesicht. Motoren entfallen, das Handy bewegt sich nicht selbst.
+
+## Lebendiges Gesicht
+* Vorbilder sind LOOI und OmniBot. Übernommen sind nur Ideen, kein Code.
+* `IdleDirector` würfelt Doppelblinzeln, Seitenblick, Zwinkern und Zusammenkneifen mit den Anteilen aus OmniBot (42/34/14/10). Die Abstände von 4 bis 10 s sind geschätzt. Nach 2 Minuten ohne Reiz kommen Gähnen und häufigere Gesten dazu.
+* Antippen im Ruhemodus öffnet weiter das Terminal. Neu ist nur Streicheln (mindestens 200 dp Fingerweg), das zeigt LOVE. Im Kindermodus überrascht Antippen, ab dem vierten Mal in 5 s wird das Gesicht wütend.
+* `clickable` löste auch nach langem Wischen aus. Der eigene Zeiger-Code misst deshalb den Fingerweg, Eingaben der Terminal-Knöpfe bleiben außen vor, weil sie verbraucht sind.
+* Das Modell bekommt keine echten Werkzeuge für das Gesicht, weil Chat-Antworten bewusst ohne Werkzeuge laufen. Es beginnt stattdessen mit einem Stimmungswort wie `[froh]`, das `splitMoodTag` aus Terminal und Sprachausgabe entfernt.
+* Kurze Gefühle enden nach 4 s von selbst. Das Stimmungswort gilt erst nach der Antwort, damit `THINKING` das Terminal bis dahin offen hält.
