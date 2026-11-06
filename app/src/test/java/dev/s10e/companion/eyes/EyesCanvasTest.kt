@@ -43,6 +43,11 @@ class EyesCanvasTest {
     @Test fun capture_THINKING() = captureMood(Mood.THINKING)
     @Test fun capture_DIZZY() = captureMood(Mood.DIZZY)
     @Test fun capture_SLEEPY() = captureMood(Mood.SLEEPY)
+    @Test fun capture_SAD() = captureMood(Mood.SAD)
+    @Test fun capture_SURPRISED() = captureMood(Mood.SURPRISED)
+    @Test fun capture_CONFUSED() = captureMood(Mood.CONFUSED)
+    @Test fun capture_EXCITED() = captureMood(Mood.EXCITED)
+    @Test fun capture_LOVE() = captureMood(Mood.LOVE)
 
     private fun captureMood(mood: Mood) {
         composeTestRule.mainClock.autoAdvance = false

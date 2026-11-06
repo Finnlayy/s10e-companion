@@ -132,6 +132,31 @@ class AgentTests {
         assertEquals(0, sentTools)
     }
 
+    @Test
+    fun agentLoop_moodTag_reachesCallerButNotTheText() = runTest {
+        val client = object : dev.s10e.companion.llm.LlmClient {
+            override fun chat(
+                messages: List<dev.s10e.companion.llm.ChatMessage>,
+                tools: List<dev.s10e.companion.llm.ToolSpec>
+            ): kotlinx.coroutines.flow.Flow<dev.s10e.companion.llm.LlmEvent> = kotlinx.coroutines.flow.flow {
+                emit(dev.s10e.companion.llm.LlmEvent.Token("[fro"))
+                emit(dev.s10e.companion.llm.LlmEvent.Token("h] Paris"))
+            }
+        }
+        val dispatcher = ToolDispatcher(emptyList(), confirm = { true }, allowed = { true })
+        val shown = mutableListOf<String>()
+        var mood: dev.s10e.companion.eyes.Mood? = null
+        val reply = AgentLoop(client, dispatcher, tempLog()).run(
+            "Wie heißt die Hauptstadt?",
+            emptyList(),
+            onReplyText = { shown.add(it) },
+            onMood = { mood = it }
+        )
+        assertEquals("Paris", reply)
+        assertEquals(listOf("", "Paris"), shown)
+        assertEquals(dev.s10e.companion.eyes.Mood.HAPPY, mood)
+    }
+
     private class RecordingClient : dev.s10e.companion.llm.LlmClient {
         val sentTools = mutableListOf<Int>()
         var lastMessages: List<dev.s10e.companion.llm.ChatMessage> = emptyList()

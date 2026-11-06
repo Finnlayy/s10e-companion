@@ -59,6 +59,41 @@ class EyeModelTest {
     }
 
     @Test
+    fun eyeFrame_sad_tiltsOppositeToAngry() {
+        val frame = eyeFrame(Mood.SAD, 0L)
+        assertTrue(frame.left.rotationDeg < 0f)
+        assertEquals(-frame.left.rotationDeg, frame.right.rotationDeg, 0.01f)
+    }
+
+    @Test
+    fun eyeFrame_confused_hasUnequalEyes() {
+        val frame = eyeFrame(Mood.CONFUSED, 0L)
+        assertTrue(frame.left.height > frame.right.height)
+    }
+
+    @Test
+    fun eyeFrame_love_drawsHearts() {
+        val frame = eyeFrame(Mood.LOVE, 0L)
+        assertTrue(frame.left.heart && frame.right.heart)
+        assertTrue(!eyeFrame(Mood.NEUTRAL, 0L).left.heart)
+    }
+
+    @Test
+    fun eyeFrame_pose_closesOneEyeAndShiftsGaze() {
+        val neutral = eyeFrame(Mood.NEUTRAL, 1_000_000_000L)
+        val posed = eyeFrame(Mood.NEUTRAL, 1_000_000_000L, pose = IdlePose(leftOpen = 0.5f, glanceX = 10f))
+        assertEquals(neutral.left.height * 0.5f, posed.left.height, 0.01f)
+        assertEquals(neutral.right.height, posed.right.height, 0.01f)
+        assertEquals(neutral.offsetX + 10f, posed.offsetX, 0.01f)
+    }
+
+    @Test
+    fun eyeFrame_pose_onlyAppliesWhenNeutral() {
+        val pose = IdlePose(leftOpen = 0f, rightOpen = 0f, glanceX = 10f)
+        assertEquals(eyeFrame(Mood.HAPPY, 0L), eyeFrame(Mood.HAPPY, 0L, pose = pose))
+    }
+
+    @Test
     fun eyeFrame_pixelShiftStaysWithin4dp() {
         var maxShiftX = 0f
         var maxShiftY = 0f

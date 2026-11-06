@@ -4,7 +4,6 @@ import android.app.Activity
 import android.view.WindowManager
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Text
@@ -27,9 +26,13 @@ import dev.s10e.companion.core.AppMode
 import dev.s10e.companion.core.ModeEvent
 import dev.s10e.companion.core.ModeMachine
 import dev.s10e.companion.eyes.EyesCanvas
+import dev.s10e.companion.eyes.FLEETING_MOODS
 import dev.s10e.companion.eyes.Mood
+import dev.s10e.companion.eyes.PokeCounter
 import dev.s10e.companion.eyes.ShakeSensor
 import dev.s10e.companion.eyes.TiltSensor
+import dev.s10e.companion.eyes.TouchKind
+import dev.s10e.companion.eyes.classifyTouch
 import dev.s10e.companion.kid.LockController
 
 import kotlinx.coroutines.delay
@@ -78,6 +81,8 @@ private class PendingAction(val description: String, val answer: CompletableDefe
 private enum class PinScreen { SET_FOR_KID_MODE, UNLOCK, DEVICE_OWNER }
 
 private const val SLEEP_AFTER_MS = 10 * 60 * 1000L
+private const val BORED_AFTER_MS = 2 * 60 * 1000L
+private const val FLEETING_MOOD_MS = 4_000L
 private const val LOOK_HOLD_MS = 2_500L
 private const val HAPPY_AFTER_PICKUP_MS = 1_500L
 private const val LOOK_RANGE_X_DP = 84f
@@ -102,6 +107,8 @@ fun AppRoot() {
     var tiltY by remember { mutableStateOf(0f) }
     var pickups by remember { mutableIntStateOf(0) }
     var lastMotionMs by remember { mutableStateOf(System.currentTimeMillis()) }
+    var bored by remember { mutableStateOf(false) }
+    val pokes = remember { PokeCounter() }
 
     var pinScreen by remember { mutableStateOf<PinScreen?>(null) }
     var pinMessage by remember { mutableStateOf<String?>(null) }
@@ -187,8 +194,9 @@ fun AppRoot() {
                         currentMode = modeMachine.onEvent(ModeEvent.Interaction(System.currentTimeMillis()))
                         mood = Mood.THINKING
                         scope.launch(Dispatchers.IO) {
+                            var replyMood: Mood? = null
                             try {
-                                val reply = agent.handle(intent.text) { partial ->
+                                val reply = agent.handle(intent.text, onMood = { replyMood = it }) { partial ->
                                     terminalReply = partial
                                     currentMode = modeMachine.onEvent(ModeEvent.Interaction(System.currentTimeMillis()))
                                 }
@@ -198,7 +206,7 @@ fun AppRoot() {
                                 terminalReply = "[Fehler: ${e.message}]"
                             }
                             vaultVersion++
-                            mood = Mood.NEUTRAL
+                            mood = replyMood ?: Mood.NEUTRAL
                         }
                     }
                     VoiceIntent.Ignored -> {}
@@ -213,6 +221,10 @@ fun AppRoot() {
     LaunchedEffect(mood) {
         if (mood == Mood.LISTENING) {
             delay(LISTEN_TIMEOUT_MS)
+            mood = Mood.NEUTRAL
+        }
+        if (mood in FLEETING_MOODS) {
+            delay(FLEETING_MOOD_MS)
             mood = Mood.NEUTRAL
         }
     }
@@ -235,6 +247,7 @@ fun AppRoot() {
     LaunchedEffect(Unit) {
         while (true) {
             val idleMs = System.currentTimeMillis() - lastMotionMs
+            bored = idleMs > BORED_AFTER_MS
             if (idleMs > SLEEP_AFTER_MS && mood == Mood.NEUTRAL) {
                 mood = Mood.SLEEPY
             }
@@ -364,21 +377,47 @@ fun AppRoot() {
         return
     }
 
+    fun onTouch(kind: TouchKind) {
+        if (kind == TouchKind.NONE) return
+        val now = System.currentTimeMillis()
+        lastMotionMs = now
+        if (mood == Mood.SLEEPY) mood = Mood.NEUTRAL
+        val free = mood == Mood.NEUTRAL || mood in FLEETING_MOODS
+        if (kind == TouchKind.STROKE && currentMode != AppMode.AGENT) {
+            if (free) mood = Mood.LOVE
+            return
+        }
+        if (currentMode == AppMode.KID_LOCKED && free) mood = pokes.onPoke(now)
+        if (currentMode == AppMode.PASSIVE) mood = Mood.LISTENING
+        val event = if (currentMode == AppMode.PASSIVE) ModeEvent.EnterAgent else ModeEvent.Interaction(now)
+        currentMode = modeMachine.onEvent(event)
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
-            .clickable {
-                lastMotionMs = System.currentTimeMillis()
-                if (mood == Mood.SLEEPY) mood = Mood.NEUTRAL
-                if (currentMode == AppMode.PASSIVE) mood = Mood.LISTENING
-                val event = if (currentMode == AppMode.PASSIVE) ModeEvent.EnterAgent else ModeEvent.Interaction(System.currentTimeMillis())
-                currentMode = modeMachine.onEvent(event)
+            .pointerInput(Unit) {
+                awaitEachGesture {
+                    val down = awaitFirstDown()
+                    var last = down.position
+                    var pathPx = 0f
+                    var taken = false
+                    while (true) {
+                        val change = awaitPointerEvent().changes.firstOrNull { it.id == down.id } ?: break
+                        // Knöpfe und Listen im Terminal verbrauchen ihre Eingaben selbst.
+                        if (change.isConsumed) taken = true
+                        pathPx += (change.position - last).getDistance()
+                        last = change.position
+                        if (!change.pressed) break
+                    }
+                    if (!taken) onTouch(classifyTouch(pathPx.toDp().value))
+                }
             },
         contentAlignment = Alignment.Center
     ) {
         when (currentMode) {
-            AppMode.PASSIVE -> EyesCanvas(mood = mood, lookX = shownLookX, lookY = shownLookY)
+            AppMode.PASSIVE -> EyesCanvas(mood = mood, lookX = shownLookX, lookY = shownLookY, bored = bored)
             AppMode.AGENT -> ApolloTerminal(
                 onMoodChange = { mood = it },
                 onEnterKidMode = { enterKidMode() },
@@ -393,7 +432,7 @@ fun AppRoot() {
                 vaultVersion = vaultVersion,
                 onBoardChanged = { vaultVersion++ }
             )
-            AppMode.KID_LOCKED -> EyesCanvas(mood = mood, lookX = shownLookX, lookY = shownLookY)
+            AppMode.KID_LOCKED -> EyesCanvas(mood = mood, lookX = shownLookX, lookY = shownLookY, bored = bored)
         }
         // Versteckter Ausweg, er funktioniert auch ohne Mikrofon und Erkennung.
         // Im Terminal entfällt das Feld, es läge sonst über den Knöpfen.

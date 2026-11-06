@@ -2,6 +2,7 @@ package dev.s10e.companion.agent
 
 import android.content.Context
 import android.content.Intent
+import dev.s10e.companion.eyes.Mood
 import dev.s10e.companion.llm.LlmClientImpl
 import dev.s10e.companion.llm.ToolSpec
 import dev.s10e.companion.plugins.PatchResult
@@ -53,8 +54,8 @@ class AgentRuntime(
     private val client = LlmClientImpl(apiKeyProvider = { File(context.filesDir, "api_key.txt").readText().trim() })
     private val loop = AgentLoop(client, dispatcher, File(context.filesDir, "audit.log"))
 
-    suspend fun handle(text: String, onReply: (String) -> Unit): String =
-        loop.run(text, tools.map { it.spec }, onReply).also(onReply)
+    suspend fun handle(text: String, onMood: (Mood) -> Unit = {}, onReply: (String) -> Unit): String =
+        loop.run(text, tools.map { it.spec }, onReply, onMood).also(onReply)
 
     private fun service(): PhoneControlService =
         PhoneControlService.instance ?: throw IllegalStateException("Bedienungshilfe ist nicht aktiviert")

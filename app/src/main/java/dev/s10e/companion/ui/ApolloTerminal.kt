@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
@@ -37,6 +38,7 @@ import android.provider.Settings
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
+import dev.s10e.companion.eyes.EyesCanvas
 import dev.s10e.companion.eyes.Mood
 import dev.s10e.companion.agent.AgentRuntime
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -88,15 +90,16 @@ fun handleTerminalInput(
         }
         updateReply("")
         onMoodChange(Mood.THINKING)
+        var replyMood: Mood? = null
         try {
-            agent.handle(text) { partial ->
+            agent.handle(text, onMood = { replyMood = it }) { partial ->
                 updateReply(partial)
                 onInteraction()
             }
         } catch (e: Exception) {
             updateReply("[Fehler: ${e.message}]")
         }
-        onMoodChange(Mood.NEUTRAL)
+        onMoodChange(replyMood ?: Mood.NEUTRAL)
         onBoardChanged()
     }
 }
@@ -266,6 +269,11 @@ fun ApolloTerminal(
                     modifier = Modifier.padding(16.dp).align(Alignment.Center)
                 )
             }
+        }
+
+        // Das Terminal verdeckt die großen Augen, die Stimmung der Antwort bleibt hier sichtbar.
+        Box(modifier = Modifier.fillMaxWidth().height(96.dp)) {
+            EyesCanvas(mood = mood, zoom = 0.4f)
         }
 
         // LLM Reply text
