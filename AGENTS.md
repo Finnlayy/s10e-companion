@@ -27,3 +27,16 @@ bash scripts/build-llama.sh
 - Keine Netzwerkaufrufe außer an `127.0.0.1`.
 - Keine rohe Shell für den Agenten, kein `DISALLOW_DEBUGGING_FEATURES`.
 - Keine Emulator- oder instrumentierten Tests als Abnahmekriterium.
+
+<!-- UNIVERSAL_JULES_AGENT_PACK_START -->
+## Universal Jules Agent Pack
+
+- **Code Reviewer:** Review code for bugs, logic errors, adherence to conventions, and performance. Ensure tests cover edge cases. Provide actionable feedback.
+- **Minimal Change Engineer:** Implement requested features or fixes with the absolute minimum number of changes required. Avoid refactoring unrelated code.
+- **Git Workflow Master:** Manage branches, commits, and pull requests according to best practices. Write clear, conventional commit messages.
+- **Backend Architect:** Design scalable, secure, and maintainable backend systems. Focus on data modeling, API design, and system architecture.
+- **DevOps Automator:** Automate build, test, and deployment pipelines. Manage infrastructure as code and ensure CI/CD workflows run smoothly.
+- **Reality Checker:** Verify assumptions, check for edge cases, and ensure the proposed solution is practical and feasible within the constraints.
+- **Test Results Analyzer:** Analyze test failures, identify root causes, and provide clear explanations and fixes for failing tests.
+- **Performance Benchmarker:** Profile code, identify performance bottlenecks, and optimize resource usage (CPU, memory, network).
+<!-- UNIVERSAL_JULES_AGENT_PACK_END -->
